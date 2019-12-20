@@ -11,16 +11,17 @@
 #
 ################################################################################
 #%%
-from numpy import *
+#from numpy import *
 import os
 #from pylab import *
 import numpy as np
 #import matplotlib.pyplot as plt
 #import matplotlib.cbook as cbook
 import time
-from scipy.misc import imread
-from scipy.misc import imresize
+# from scipy.misc import imread
+# from scipy.misc import imresize
 import matplotlib.image as mpimg
+from matplotlib.pylab import imread
 from scipy.ndimage import filters
 import urllib
 from numpy import random
@@ -30,8 +31,8 @@ import tensorflow as tf
 
 from alexnet.caffe_classes import class_names
 
-train_x = zeros((1, 227,227,3)).astype(float32)
-train_y = zeros((1, 1000))
+train_x = np.zeros((1, 227,227,3)).astype(np.float32)
+train_y = np.zeros((1, 1000))
 xdim = train_x.shape[1:]
 ydim = train_y.shape[1]
 
@@ -41,11 +42,11 @@ ydim = train_y.shape[1]
 #Read Image, and change to BGR
 
 
-im1 = (imread("alexnet\laska.png")[:,:,:3]).astype(float32)
-im1 = im1 - mean(im1)
+im1 = (imread("alexnet\laska.png")[:,:,:3]).astype(np.float32)
+im1 = im1 - np.mean(im1)
 im1[:, :, 0], im1[:, :, 2] = im1[:, :, 2], im1[:, :, 0]
 
-im2 = (imread("alexnet\poodle.png")[:,:,:3]).astype(float32)
+im2 = (imread("alexnet\poodle.png")[:,:,:3]).astype(np.float32)
 im2[:, :, 0], im2[:, :, 2] = im2[:, :, 2], im2[:, :, 0]
 
 #%%
@@ -67,18 +68,17 @@ im2[:, :, 0], im2[:, :, 2] = im2[:, :, 2], im2[:, :, 0]
 #         .softmax(name='prob'))
 
 #In Python 3.5, change this to:
-net_data = load(open("alexnet\\bvlc_alexnet.npy", "rb"), encoding="latin1").item()
+net_data = np.load(open("alexnet\\bvlc_alexnet.npy", "rb"), allow_pickle=True, encoding="latin1").item()
 #net_data = load("bvlc_alexnet.npy").item()
 
 def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group=1):
     '''From https://github.com/ethereon/caffe-tensorflow
     '''
     c_i = input.get_shape()[-1]
-    assert c_i%group==0
-    assert c_o%group==0
+    assert c_i % group == 0
+    assert c_o % group == 0
     convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
-    
-    
+
     if group==1:
         conv = convolve(input, kernel)
     else:
@@ -87,8 +87,6 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group
         output_groups = [convolve(i, k) for i,k in zip(input_groups, kernel_groups)]
         conv = tf.concat(output_groups, 3)          #tf.concat(3, output_groups)
     return  tf.reshape(tf.nn.bias_add(conv, biases), [-1]+conv.get_shape().as_list()[1:])
-
-
 
 x = tf.placeholder(tf.float32, (None,) + xdim)
 
@@ -173,7 +171,7 @@ maxpool5 = tf.nn.max_pool(conv5, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1
 #fc(4096, name='fc6')
 fc6W = tf.Variable(net_data["fc6"][0])
 fc6b = tf.Variable(net_data["fc6"][1])
-fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
+fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
 
 #fc7
 #fc(4096, name='fc7')
@@ -206,7 +204,7 @@ output = sess.run(prob, feed_dict = {x:[im1,im2]})
 
 
 for input_im_ind in range(output.shape[0]):
-    inds = argsort(output)[input_im_ind,:]
+    inds = np.argsort(output)[input_im_ind,:]
     print("Image", input_im_ind)
     for i in range(5):
         print(class_names[inds[-1-i]], output[input_im_ind, inds[-1-i]])
