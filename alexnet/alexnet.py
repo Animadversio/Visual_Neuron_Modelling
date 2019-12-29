@@ -24,7 +24,7 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w, padding="VALID", group=
     return tf.reshape(tf.nn.bias_add(conv, biases), [-1] + conv.get_shape().as_list()[1:])
 
 class MyAlexnet:
-    def __init__(self):
+    def __init__(self, xdim=(227, 227, 3)):
         """Build the graph in initialization"""
         net_data = np.load("alexnet\\bvlc_alexnet.npy", allow_pickle=True, encoding="latin1").item()
         # net_data = load("bvlc_alexnet.npy").item()

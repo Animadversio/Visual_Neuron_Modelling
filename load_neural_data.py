@@ -16,38 +16,39 @@ ExpTable = pd.read_excel(r"D:\Network_Data_Sync\ExpSpecTable_Augment.xls")
 rspPath = r"D:\Network_Data_Sync\Data-Ephys-MAT"
 NetrspPath = r"N:\Data-Ephys-MAT"
 #%%
-sys.path.append(r"D:\Github\Activation-Maximization-for-Visual-Syastem")
-from torch_net_utils import load_caffenet, load_generator, visualize
+# sys.path.append(r"D:\Github\Activation-Maximization-for-Visual-System")
+# from torch_net_utils import load_caffenet, load_generator, visualize
 # net = load_caffenet()
-Generator = load_generator()
-#%%
-rspPath = r"D:\Network_Data_Sync\Data-Ephys-MAT"#r"N:\Data-Ephys-MAT"#
-EphsFN = "Beto64chan-30102019-001"  # "Beto64chan-11112019-006" #
-stimPath = r"N:\Stimuli\2019-Manifold\beto-191030a\backup_10_30_2019_10_15_31"
-
-allfns = os.listdir(stimPath)
-matfns = sorted(glob(join(stimPath, "*.mat")))  # [fn if ".mat" in fn else [] for fn in allfns]
-imgfns = sorted(glob(join(stimPath, "*.jpg")))  # [fn if ".mat" in fn else [] for fn in allfns]
-#%% Load the Codes mat file
-data = loadmat(matfns[1])
-codes = data['codes']
-img_id = [arr[0] for arr in list(data['ids'][0])] # list of ids
-#%%
-
-Rspfns = sorted(glob(join(rspPath, EphsFN+"*")))
-rspData = h5py.File(Rspfns[1])
-spikeID = rspData['meta']['spikeID']
-rsp = rspData['rasters']
-# Extremely useful code snippet to solve the problem
-imgnms_refs = np.array(rspData['Trials']['imageName']).flatten()
-imgnms = np.array([''.join(chr(i) for i in rspData[ref]) for ref in imgnms_refs])
-#%%
-prefchan_idx = np.nonzero(spikeID[0, :] == 26)[0] - 1
-prefrsp = rsp[:, :, prefchan_idx]  # Dataset reading takes time
-scores = prefrsp[:, 50:, :].mean(axis=1) - prefrsp[:, :40, :].mean(axis=1)
+# Generator = load_generator()
+# #%%
+# rspPath = r"D:\Network_Data_Sync\Data-Ephys-MAT"#r"N:\Data-Ephys-MAT"#
+# EphsFN = "Beto64chan-30102019-001"  # "Beto64chan-11112019-006" #
+# stimPath = r"N:\Stimuli\2019-Manifold\beto-191030a\backup_10_30_2019_10_15_31"
+#
+# allfns = os.listdir(stimPath)
+# matfns = sorted(glob(join(stimPath, "*.mat")))  # [fn if ".mat" in fn else [] for fn in allfns]
+# imgfns = sorted(glob(join(stimPath, "*.jpg")))  # [fn if ".mat" in fn else [] for fn in allfns]
+# #%% Load the Codes mat file
+# data = loadmat(matfns[1])
+# codes = data['codes']
+# img_id = [arr[0] for arr in list(data['ids'][0])] # list of ids
+# #%%
+#
+# Rspfns = sorted(glob(join(rspPath, EphsFN+"*")))
+# rspData = h5py.File(Rspfns[1])
+# spikeID = rspData['meta']['spikeID']
+# rsp = rspData['rasters']
+# # Extremely useful code snippet to solve the problem
+# imgnms_refs = np.array(rspData['Trials']['imageName']).flatten()
+# imgnms = np.array([''.join(chr(i) for i in rspData[ref]) for ref in imgnms_refs])
+# #%%
+# prefchan_idx = np.nonzero(spikeID[0, :] == 26)[0] - 1
+# prefrsp = rsp[:, :, prefchan_idx]  # Dataset reading takes time
+# scores = prefrsp[:, 50:, :].mean(axis=1) - prefrsp[:, :40, :].mean(axis=1)
 
 #%%
 class ExpData:
+    """A class to handle loading matlab experimental data, and do basic processing on it"""
     def __init__(self, ephysFN, stimuli_path):
         self.ephysFN = ephysFN
         self.stimuli = stimuli_path
@@ -55,6 +56,7 @@ class ExpData:
     def load_mat(self):
         Rspfns = sorted(glob(join(rspPath, self.ephysFN + "*")))
         if len(Rspfns) == 0:
+            """Mat file not existing in local folder, sync it from network folder."""
             print("Start copying mat file from network folder.")
             NetRspfns = sorted(glob(join(NetrspPath, self.ephysFN + "*")))
             for fn in NetRspfns:
@@ -107,14 +109,14 @@ class ExpData:
 
     def close(self):
         self.matfile.close()
-#%%
-ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("generate")
-EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
-#%%
-ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("selectivity")
-print(ExpTable.comments[ftr].str.cat())
-MData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
-MData.load_mat()
-#%%
-MData.close()
-EData.close()
+# #%%
+# ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("generate")
+# EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
+# #%%
+# ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("selectivity")
+# print(ExpTable.comments[ftr].str.cat())
+# MData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
+# MData.load_mat()
+# #%%
+# MData.close()
+# EData.close()
