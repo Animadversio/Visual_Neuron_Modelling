@@ -1,3 +1,4 @@
+import os
 from os.path import join
 from glob import glob
 from load_neural_data import ExpTable, ExpData
@@ -7,17 +8,18 @@ from skimage.io import imread, imread_collection
 from skimage.color import gray2rgb
 import numpy as np
 Result_Dir = r"C:\Users\ponce\OneDrive - Washington University in St. Louis\Tuning_Interpretation"
-#%%
-ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("generate")
-print(ExpTable.comments[ftr].str.cat())
-EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
-EData.load_mat()
-#%%
+#%%  Select the experiment to load, by filtering the experiment excel table
+# ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("generate")
+# print(ExpTable.comments[ftr].str.cat())
+# EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
+# EData.load_mat()
+# #%%
 ftr = (ExpTable.Expi == 11) & ExpTable.expControlFN.str.contains("generate")
 print(ExpTable.comments[ftr].str.cat())
 EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
 EData.load_mat()
 Expi = ExpTable.Expi[ftr].to_numpy()[0]
+# Use this flag to determine how to name the folder / how to load the data
 IsEvolution = ExpTable.expControlFN[ftr].str.contains("generate").to_numpy()[0]
 Exp_Dir = join(Result_Dir, "Exp%d_Chan%d_%s" % (Expi, EData.pref_chan, "Evol" if IsEvolution else "Man"))
 os.makedirs(Exp_Dir, exist_ok=True)
@@ -57,7 +59,7 @@ img_raw = tf.io.read_file(stimnames[0])
 img_tensor = tf.image.decode_image(img_raw)
 print(img_tensor.shape)
 print(img_tensor.dtype)
-#%% Experiment with Tensorflow input pipeline
+#%% Experiment with Tensorflow input pipeline (obsolete. finally using numpy input pipeline)
 stimnames = [join(MData.stimuli, imgfn)+".jpg" if "gab_ori_" not in imgfn else join(MData.stimuli, imgfn)+".bmp"
              for imgfn in MData.imgnms]
 imgpaths_ds = tf.data.Dataset.from_tensor_slices(stimnames[:30])
@@ -112,10 +114,9 @@ with tf.Session() as sess:
 init = tf.initialize_all_variables()
 sess = tf.Session(config=tf.ConfigProto())
 sess.run(init)
-#%% Feeding image through CNN to get features
-# stimpaths = [glob(join(MData.stimuli, imgfn+"*"))[0] for imgfn in MData.imgnms]
+#%% Feeding image through CNN to get features (Numpy input pipeline)
 if IsEvolution:
-    EData.find_generated()
+    EData.find_generated() # fit the model only to generated images.
     stimpaths = [glob(join(EData.stimuli, imgfn+"*"))[0] for imgfn in EData.gen_fns]
 else:
     stimpaths = [glob(join(EData.stimuli, imgfn + "*"))[0] for imgfn in EData.imgnms]
@@ -136,8 +137,9 @@ while idx_csr < len(stimpaths):
     BS_num += 1
     print("Finished %d batch, take %.1f s" % (BS_num, time() - t0))
 t1 = time()
+# temporially safe files
 np.savez("Efeat_tsr2.npz", feat_tsr = out_feats_all, ephysFN=EData.ephysFN, stimuli_path=EData.stimuli)
-#np.savez("Efeat_tsr.npz", feat_tsr = out_feats_all, ephysFN=EData.ephysFN, stimuli_path=EData.stimuli)
+# np.savez("Efeat_tsr.npz", feat_tsr = out_feats_all, ephysFN=EData.ephysFN, stimuli_path=EData.stimuli)
 print("%.1f s" % (t1 - t0))  # Tensorflow 115.1s for 10 sample batch! Faster than torch
 # 187.5 s for 2000 images
 #%%

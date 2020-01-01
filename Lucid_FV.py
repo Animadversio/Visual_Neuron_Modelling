@@ -2,6 +2,7 @@
 Adapted from Lucid official tutorial notebook
 https://colab.research.google.com/github/tensorflow/lucid/blob/master/notebooks/tutorial.ipynb
 
+Trying out different visualization options 
 '''
 #%%
 import numpy as np
