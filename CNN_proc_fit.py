@@ -115,11 +115,14 @@ init = tf.initialize_all_variables()
 sess = tf.Session(config=tf.ConfigProto())
 sess.run(init)
 #%% Feeding image through CNN to get features (Numpy input pipeline)
+fnlst = glob(EData.stimuli + "\\*")
 if IsEvolution:
     EData.find_generated() # fit the model only to generated images.
-    stimpaths = [glob(join(EData.stimuli, imgfn+"*"))[0] for imgfn in EData.gen_fns]
+    # stimpaths = [glob(join(EData.stimuli, imgfn+"*"))[0] for imgfn in EData.gen_fns] # very slow
+    stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in EData.gen_fns]
 else:
-    stimpaths = [glob(join(EData.stimuli, imgfn + "*"))[0] for imgfn in EData.imgnms]
+    # stimpaths = [glob(join(EData.stimuli, imgfn + "*"))[0] for imgfn in EData.imgnms]
+    stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in EData.imgnms]
 t0 = time()
 Bnum = 10
 print("%d images to fit the model, estimated batch number %d."%(len(stimpaths), np.ceil(len(stimpaths)/Bnum)))

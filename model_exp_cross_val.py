@@ -12,7 +12,7 @@ from skimage.color import gray2rgb
 import numpy as np
 Result_Dir = r"C:\Users\ponce\OneDrive - Washington University in St. Louis\Tuning_Interpretation"
 #%%
-ftr = (ExpTable.Expi == 11) & ExpTable.expControlFN.str.contains("generate")
+ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("generate")
 print(ExpTable.comments[ftr].str.cat())
 EData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
 EData.load_mat()
@@ -29,7 +29,7 @@ Expi_M = ExpTable.Expi[ftr].to_numpy()[0]
 IsManifold = ExpTable.expControlFN[ftr].str.contains("selectivity").to_numpy()[0]
 assert Expi_M == Expi  # confirm the experimental number coincide with each other.
 
-Exp_Dir = join(Result_Dir, "Exp%d_Chan%d_EM_cmp")
+Exp_Dir = join(Result_Dir, "Exp%d_Chan%d_EM_CV")
 os.makedirs(Exp_Dir, exist_ok=True)
 
 #%% Fit with one set of data and validate with another set.
@@ -38,12 +38,20 @@ from alexnet.alexnet import MyAlexnet
 net = MyAlexnet()
 
 init = tf.initialize_all_variables()
-sess = tf.Session(config=tf.ConfigProto())
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.Session(config=config)
 sess.run(init)
+# TF GPU test code
+im1 = (imread("alexnet\laska.png")[:,:,:3]).astype(np.float32)
+im1 = im1 - np.mean(im1)
+im1[:, :, 0], im1[:, :, 2] = im1[:, :, 2], im1[:, :, 0]
+output = sess.run(net.conv4, feed_dict={net.x: [im1,im1]})
 #%% Feeding image through CNN to get features (Numpy input pipeline)
 assert IsEvolution
 EData.find_generated() # fit the model only to generated images.
-stimpaths = [glob(join(EData.stimuli, imgfn+"*"))[0] for imgfn in EData.gen_fns]
+fnlst = glob(EData.stimuli+"\\*")
+stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in EData.gen_fns]
 
 t0 = time()
 Bnum = 10
@@ -69,7 +77,8 @@ print("%.1f s" % (t1 - t0))  # Tensorflow 115.1s for 10 sample batch! Faster tha
 
 #%%
 assert IsManifold
-stimpaths = [glob(join(MData.stimuli, imgfn + "*"))[0] for imgfn in MData.imgnms]
+fnlst = glob(MData.stimuli+"\\*")
+stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in MData.imgnms]
 t0 = time()
 Bnum = 10
 print("%d images to fit the model, estimated batch number %d."%(len(stimpaths), np.ceil(len(stimpaths)/Bnum)))
