@@ -1,4 +1,4 @@
-#%%
+"""Define the class that manage Monkey experiment data and the Experiment records"""
 import h5py
 import sys
 import os
@@ -12,7 +12,7 @@ import matplotlib.pylab as plt
 import csv
 from time import time
 import pandas as pd
-ExpTable = pd.read_excel(r"D:\Network_Data_Sync\ExpSpecTable_Augment.xls")
+ExpTable = pd.read_excel(r"D:\Network_Data_Sync\ExpSpecTable_Augment.xlsx")
 rspPath = r"D:\Network_Data_Sync\Data-Ephys-MAT"
 NetrspPath = r"N:\Data-Ephys-MAT"
 #%%

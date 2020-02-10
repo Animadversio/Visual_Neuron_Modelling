@@ -24,7 +24,7 @@ IsEvolution = ExpTable.expControlFN[ftr].str.contains("generate").to_numpy()[0]
 Exp_Dir = join(Result_Dir, "Exp%d_Chan%d_%s" % (Expi, EData.pref_chan, "Evol" if IsEvolution else "Man"))
 os.makedirs(Exp_Dir, exist_ok=True)
 #%%
-ftr = (ExpTable.Expi == 12) & ExpTable.expControlFN.str.contains("selectivity")
+ftr = (ExpTable.Expi == 11) & ExpTable.expControlFN.str.contains("selectivity")
 print(ExpTable.comments[ftr].str.cat())
 MData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
 MData.load_mat()
@@ -34,7 +34,7 @@ Exp_Dir = join(Result_Dir, "Exp12_Chan20_Evol")
 import tensorflow as tf
 from alexnet.alexnet import MyAlexnet
 net = MyAlexnet()
-#%% Demo code
+#%% Demo code of AlexNet
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 init = tf.initialize_all_variables()
@@ -44,7 +44,7 @@ sess.run(init)
 #output = sess.run(net.conv4, feed_dict = {net.x:[im1,im2]})
 output = sess.run(net.conv4, feed_dict = {net.x: input_tsr})
 
-#%%
+#%% tensorflow input pipeline(obsolete. finally using numpy input pipeline)
 stimnames = [join(MData.stimuli, imgfn)+".jpg" for imgfn in MData.imgnms]
 imgpaths_ds = tf.data.Dataset.from_tensor_slices(stimnames)
 def load_preprocess(path):
@@ -54,7 +54,7 @@ def load_preprocess(path):
     image /= 255.0  # normalize to [0,1] range
     return image
 image_ds = imgpaths_ds.map(load_preprocess)
-#%% tensorflow input pipeline
+#%% tensorflow input pipeline(obsolete. finally using numpy input pipeline)
 img_raw = tf.io.read_file(stimnames[0])
 img_tensor = tf.image.decode_image(img_raw)
 print(img_tensor.shape)
@@ -124,7 +124,7 @@ else:
     # stimpaths = [glob(join(EData.stimuli, imgfn + "*"))[0] for imgfn in EData.imgnms]
     stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in EData.imgnms]
 t0 = time()
-Bnum = 10
+Bnum = 15
 print("%d images to fit the model, estimated batch number %d."%(len(stimpaths), np.ceil(len(stimpaths)/Bnum)))
 out_feats_all = np.empty([], dtype=np.float32)
 idx_csr = 0
@@ -134,7 +134,7 @@ while idx_csr < len(stimpaths):
     imgs = imread_collection(stimpaths[idx_csr:idx_ub])
     ppimgs = [gray2rgb(resize(img, (227, 227), order=1, anti_aliasing=True))[np.newaxis, :] for img in imgs]
     input_tsr = np.concatenate(tuple(ppimgs), axis=0)
-    output = sess.run(net.conv4, feed_dict={net.x: input_tsr})
+    output = sess.run(net.conv3, feed_dict={net.x: input_tsr})
     out_feats_all = np.concatenate((out_feats_all, output), axis=0) if out_feats_all.shape else output
     idx_csr = idx_ub
     BS_num += 1

@@ -9,6 +9,7 @@ from time import time
 from skimage.transform import resize #, rescale, downscale_local_mean
 from skimage.io import imread, imread_collection
 from skimage.color import gray2rgb
+import matplotlib.pylab as plt
 import numpy as np
 Result_Dir = r"C:\Users\ponce\OneDrive - Washington University in St. Louis\Tuning_Interpretation"
 #%% Load a Generation (Evolution Experiment)
@@ -108,20 +109,20 @@ t1 = time()
 np.savez("Mfeat_tsr2.npz", feat_tsr=out_feats_all_M, ephysFN=MData.ephysFN, stimuli_path=MData.stimuli)
 print("%.1f s" % (t1 - t0))
 #%% Compute scores and fit it towards features
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet, RidgeCV
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV
 pref_ch_idx = (EData.spikeID == EData.pref_chan).nonzero()[1]
 psths = EData.rasters[:, :, pref_ch_idx[0]]
 scores = (psths[EData.gen_rows_idx, 50:200].mean(axis=1) - psths[EData.gen_rows_idx, 0:40].mean(axis=1)).squeeze()
-RdgCV = RidgeCV(alphas=[1e-2, 1e-1, 1, 1e1, 1e2, 1e3]).fit(out_feats_all.reshape((out_feats_all.shape[0], -1)), scores)
-print("Selected alpha %.1f" % RdgCV.alpha_)
+RdgCV = RidgeCV(alphas=[1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1E4]).fit(out_feats_all.reshape((out_feats_all.shape[0], -1)), scores)
+LssCV = LassoCV(alphas=[1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1E4]).fit(out_feats_all.reshape((out_feats_all.shape[0], -1)), scores)
+print("Selected Ridge alpha %.1f" % RdgCV.alpha_)
+print("Selected Lasso alpha %.1f" % LssCV.alpha_)
 #%%
 pref_ch_idx = (MData.spikeID == EData.pref_chan).nonzero()[1]
 psths = MData.rasters[:, :, pref_ch_idx[0]]
 Mscores = (psths[:, 50:200].mean(axis=1) - psths[:, 0:40].mean(axis=1)).squeeze()
 pred_score = RdgCV.predict(out_feats_all_M.reshape((out_feats_all_M.shape[0], -1)))
-
-#%%
-import matplotlib.pylab as plt
+Lss_pred_score = LssCV.predict(out_feats_all_M.reshape((out_feats_all_M.shape[0], -1)))
 #%%
 plt.figure()
 plt.plot(Mscores, alpha=0.6)
@@ -130,4 +131,20 @@ plt.show()
 #%%
 plt.figure()
 plt.scatter(Mscores, pred_score)
+plt.xlabel("Response Scores")
+plt.ylabel("Predicted Scores")
+plt.title("Ridge model (alpha=%d) cross experiment validation" % (RdgCV.alpha_))
+plt.show()
+#%%
+plt.figure()
+plt.plot(Mscores, alpha=0.6)
+plt.plot(Lss_pred_score, alpha=0.6)
+plt.title("LASSO model (alpha=%d) cross experiment validation" % (LssCV.alpha_))
+plt.show()
+#%%
+plt.figure()
+plt.scatter(Mscores, Lss_pred_score)
+plt.xlabel("Response Scores")
+plt.ylabel("Predicted Scores")
+plt.title("LASSO model (alpha=%d) cross experiment validation" % (LssCV.alpha_))
 plt.show()
