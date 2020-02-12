@@ -73,12 +73,13 @@ for Expi in range(1, 46):
     print("%.1f s" % (t1 - t0))  # Tensorflow 115.1s for 10 sample batch! Faster than torch
     del out_feats_all
 #%% Load a Selectivity (Manifold Experiment)
-for Expi in range(1, 46):
+for Expi in range(3, 46):
     ftr = (ExpTable.Expi == Expi) & ExpTable.expControlFN.str.contains("selectivity") & ExpTable.Exp_collection.str.contains("Manifold")
     print(ExpTable.comments[ftr].str.cat())
     MData = ExpData(ExpTable[ftr].ephysFN.str.cat(), ExpTable[ftr].stimuli.str.cat())
     MData.load_mat()
     Expi_M = ExpTable.Expi[ftr].to_numpy()[0]
+    print("Processing Manifold Exp %d" % Expi_M)
     IsManifold = ExpTable.expControlFN[ftr].str.contains("selectivity").to_numpy()[0]
     assert Expi_M == Expi  # confirm the experimental number coincide with each other.
     Exp_Dir = join(Result_Dir, "Exp%d_Chan%d_%s" % (Expi, ExpTable[ftr].pref_chan.array[0], "Man" if IsManifold else "Evol"))
@@ -110,7 +111,7 @@ for Expi in range(1, 46):
     # Temporially safe files
     np.savez(join(DS_Dir, "feat_tsr.npz"), feat_tsr=out_feats_all_M, ephysFN=MData.ephysFN, stimuli_path=MData.stimuli)
     print("%.1f s" % (t1 - t0))
-    del out_feats_all
+    del out_feats_all_M
 #%%
 
 #%%%%%%%% Starts the model fitting part

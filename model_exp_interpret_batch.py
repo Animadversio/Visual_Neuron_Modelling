@@ -225,7 +225,7 @@ plt.title("Lasso Model (alpha=%d) CrossValidated\n Prediction about Manifold res
 plt.axis("image")
 plt.colorbar()
 plt.suptitle("Linear Model ~ AlexNet Conv3  Fitted on %s model\n Cross Validated on Manifold Experiments"%Exp_str)
-plt.savefig(join(Exp_Dir,"Evol2Manif_rsp_CV.png"))
+plt.savefig(join(Exp_Dir, "Evol2Manif_rsp_CV.png"))
 plt.show()
 #%%
 ang_step = 18
@@ -261,7 +261,7 @@ plt.title("Lasso Model (alpha=%d) CrossValidated\n Prediction about Pasu result"
 plt.axis("image")
 plt.colorbar()
 plt.suptitle("Linear Model ~ AlexNet Conv3  Fitted on %s model\n Cross Validated on Manifold Experiments" % Exp_str)
-plt.savefig(join(Exp_Dir,"Evol2Manif_rsp_Pasu_CV.png"))
+plt.savefig(join(Exp_Dir, "Evol2Manif_rsp_Pasu_CV.png"))
 plt.show()
 
 #%%
