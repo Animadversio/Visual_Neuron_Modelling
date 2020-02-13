@@ -10,6 +10,8 @@ from skimage.color import gray2rgb
 import matplotlib.pylab as plt
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet, RidgeCV, LassoCV
 import numpy as np
+import keras_preprocessing.image as image
+from CNN_feature import CNNfeature
 Result_Dir = r"C:\Users\ponce\OneDrive - Washington University in St. Louis\Tuning_Interpretation"
 DataStore_Dir = r"D:\Tuning_Interpretation"
 
@@ -50,24 +52,59 @@ class model_fitter:
         os.makedirs(self.DS_Dir, exist_ok=True)
         self.Exp_str = "Manifold Exp%d Pref Chan%d" % (self.Expi, self.pref_chan)
 
-    def proc_images(self, network, layer, batch=1, savefeat=True):
+    def load_feature_extractor(self, network, layer, backend="keras"):
+        self.CNNfeat = CNNfeature(backend)
+        self.CNNfeat.set_model_param(network, layer)
+
+    def proc_images(self, batch=1, savefeat=True):
         """use CNN to process images, allows different backends"""
-        self.out_feats_all
+        fnlst = glob(self.EData.stimuli + "\\*")
+        if self.IsEvolution:
+            stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in self.EData.gen_fns]
+        if self.IsManifold:
+            stimpaths = [[nm for nm in fnlst if imgfn in nm][0] for imgfn in self.EData.imgnms]
+        t0 = time()
+        Bnum = batch
+        print("%d images to fit the model, estimated batch number %d." %
+              (len(stimpaths), np.ceil(len(stimpaths) / Bnum)))
+        feature_all = np.empty([], dtype=np.float32)
+        idx_csr = 0
+        BS_num = 0
+        while idx_csr < len(stimpaths):
+            idx_ub = min(idx_csr + Bnum, len(stimpaths))
+            ppimgs = []
+            for img_path in stimpaths[idx_csr:idx_ub]:
+                # should be taken care of by the CNN part
+                img = image.load_img(img_path, target_size=(224, 224))
+                x = image.img_to_array(img)
+                x = self.CNNfeat.preprocess(x)
+                ppimgs.append(x[np.newaxis, :, :, :].copy())
+            input_tsr = np.concatenate(tuple(ppimgs), axis=0)
+            # should be taken care of by the CNN part
+            features = self.CNNfeat.process(input_tsr)
+            feature_all = np.concatenate((feature_all, features), axis=0) if feature_all.shape else features
+            idx_csr = idx_ub
+            BS_num += 1
+            print("Finished %d batch, take %.1f s" % (BS_num, time() - t0))
+        t1 = time()
+        if savefeat:
+            np.savez(join(self.DS_Dir, "VGG_feat_tsr.npz"), feat_tsr=feature_all, ephysFN=self.EData.ephysFN,
+                     stimuli_path=self.EData.stimuli)
+        print("Feature completed and saved %.1f s" % (t1 - t0))
+        self.out_feats_all = feature_all
         self.feat_tsr_shape = self.out_feats_all.shape[1:]
         self.feat_proc = True
-        if savefeat:
-            np.savez(join(self.DS_Dir, "feat_tsr.npz"), feat_tsr=self.out_feats_all,
-                     ephysFN=self.EData.ephysFN, stimuli_path=self.EData.stimuli)
+        # del feature_all
 
-    def fit_model(self, ridge_alpha=None,lasso_alpha=None,save=True):
+    def fit_model(self, ridge_alpha=None, lasso_alpha=None, save=True):
         """Fit general regularized linear model for neural response"""
         if self.feat_proc is False: # load the features from processed datastore.
             with np.load(join(self.DS_Dir, "feat_tsr.npz")) as data:
                 self.out_feats_all = data["feat_tsr"]
 
         pref_ch_idx = (self.EData.spikeID == self.EData.pref_chan).nonzero()[1]
-        psths = self.EData.rasters[:, :, pref_ch_idx[0]]
-        if self.IsEvolution: # only choose to fit model based on the evolved images.
+        psths = self.EData.rasters[:, :, pref_ch_idx[0]]  # TODO add different unit to this.
+        if self.IsEvolution:  # only choose to fit model based on the evolved images.
             scores = (psths[self.EData.gen_rows_idx, 50:200].mean(axis=1) - psths[self.EData.gen_rows_idx, 0:40].mean(
                 axis=1)).squeeze()
         else: # fit model based on all responses.
@@ -105,10 +142,11 @@ class model_fitter:
             self.feat_tsr_shape = data["WeightShape"]
 
     def cross_validate(self):
-
+        pass
     def visualize(self):
         # Plot Heatmap
-
+        pass
         # Plot Manifold if it's Manifold experiment.
 
     def visualize_mask_on_img(self):
+        pass
