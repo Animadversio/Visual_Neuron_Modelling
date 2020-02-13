@@ -6,7 +6,6 @@ from os.path import join
 import shutil
 from glob import glob
 from scipy.io import loadmat
-import torch
 import numpy as np
 import matplotlib.pylab as plt
 import csv
