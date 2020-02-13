@@ -1,3 +1,4 @@
+"""Script of the full pipeline, including the lucid feature visualization code"""
 import os
 from os.path import join
 from glob import glob

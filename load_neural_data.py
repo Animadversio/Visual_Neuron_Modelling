@@ -15,7 +15,7 @@ import pandas as pd
 ExpTable = pd.read_excel(r"D:\Network_Data_Sync\ExpSpecTable_Augment.xlsx")
 rspPath = r"D:\Network_Data_Sync\Data-Ephys-MAT"
 NetrspPath = r"N:\Data-Ephys-MAT"
-#%%
+#%% Building up script
 # sys.path.append(r"D:\Github\Activation-Maximization-for-Visual-System")
 # from torch_net_utils import load_caffenet, load_generator, visualize
 # net = load_caffenet()
