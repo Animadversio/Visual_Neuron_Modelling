@@ -1,3 +1,4 @@
+"""Extract feature from Keras implemented CNN """
 from keras.applications.vgg19 import VGG19
 from keras.preprocessing import image
 from keras.applications.vgg19 import preprocess_input

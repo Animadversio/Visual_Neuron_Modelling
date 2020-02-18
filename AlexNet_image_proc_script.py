@@ -1,3 +1,4 @@
+"""Script to process image stimuli for each experiments."""
 import os
 from os.path import join
 from glob import glob
@@ -22,7 +23,7 @@ import tensorflow as tf
 
 init = tf.initialize_all_variables()
 config = tf.ConfigProto()
-#config.gpu_options.allow_growth = True
+# config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 sess.run(init)
 # TF GPU test code
