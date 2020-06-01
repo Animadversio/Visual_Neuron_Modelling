@@ -197,7 +197,7 @@ sess = tf.Session(config=config)
 sess.run(init)
 
 t = time.time()
-output = sess.run(prob, feed_dict = {x:[im1,im2]})
+output = sess.run(conv4, feed_dict = {x:[im1,im2]})
 ################################################################################
 
 #Output:
