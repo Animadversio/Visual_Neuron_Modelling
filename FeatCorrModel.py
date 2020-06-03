@@ -1,9 +1,9 @@
-mat_path = r"C:\Users\binxu\OneDrive - Washington University in St. Louis\Mat_Statistics"
+mat_path = r"E:\OneDrive - Washington University in St. Louis\Mat_Statistics"
 from scipy.io import loadmat
 from skimage.io import imread, imread_collection
 from os.path import join
 import numpy as np
-
+import matplotlib.pylab as plt
 #%%
 Animal = "Alfa"
 # ManifDyn = loadmat(join(mat_path, Animal + "_ManifPopDynamics.mat"), struct_as_record=False, squeeze_me=True)['ManifDyn']
@@ -27,7 +27,6 @@ score_mat = np.frompyfunc(lambda psth: np.mean(psth[0,50:,:]),1,1)(MStats[2].man
 score_mat = score_mat.astype(np.float)
 score_vect = score_mat.reshape(-1)
 #%%
-import matplotlib.pylab as plt
 plt.matshow(score_mat)
 plt.axis('image')
 plt.show()
@@ -63,7 +62,9 @@ from torchvision import transforms
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import     SGD, Adam
+from torch.optim import  SGD, Adam
+from lucent.optvis import render, param, transform, objectives
+from matver_CNN import getMatVGG, lucent_layernames
 VGG = models.vgg16(pretrained=True)
 preprocess = transforms.Compose([transforms.ToTensor(),
             #transforms.Resize((256, 256)),
@@ -132,12 +133,8 @@ plt.colorbar()
 plt.show()
 #%%
 FeatNet.cpu()
-#%%
-
-
-
-#%%
-from lucent.optvis import render, param, transform, objectives
+#
+#%% Use Lucent to interpret the correlation
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 VGG.to(device).eval()
 #%%
@@ -202,8 +199,10 @@ images = render.render_vis(VGG, obj, cppn_param_f, cppn_opt, transforms=all_tran
 plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_localvis_tfm.PNG"%np.random.randint(1000)),images[0][0,:])
 #%%
 from lucent.optvis.objectives_util import _extract_act_pos
-def neuron_weight(layer, x=None, y=None, weight=None, batch=None):
-    """  """
+def neuron_weight(layer, weight=None, x=None, y=None, batch=None):
+    """ Linearly weighted channel activation at one location as objective
+    weight: a torch Tensor vector same length as channel.
+    """
     def inner(model):
         layer_t = model(layer)
         layer_t = _extract_act_pos(layer_t, x, y)
@@ -214,21 +213,26 @@ def neuron_weight(layer, x=None, y=None, weight=None, batch=None):
     return inner
 
 def channel_weight(layer, weight, batch=None):
-    """  """
+    """ Linearly weighted channel activation as objective
+    weight: a torch Tensor vector same length as channel. """
     def inner(model):
         layer_t = model(layer)
-        return -(layer_t * weight.view(1,-1,1,1)).mean()
+        return -(layer_t * weight.view(1, -1, 1, 1)).mean()
     return inner
 
-def localpop_weight(layer, x=None, y=None, wx=1, wy=1, weight=None, batch=None):
-    """  """
+def localgroup_weight(layer, weight=None, x=None, y=None, wx=1, wy=1, batch=None):
+    """ Linearly weighted channel activation around some spot as objective
+    weight: a torch Tensor vector same length as channel. """
     def inner(model):
         layer_t = model(layer)
-        return -(layer_t[:,:,y:y+wy,x:x+wx] * weight.view(1,-1,1,1)).mean()
+        if weight is None:
+            return -(layer_t[:, :, y:y + wy, x:x + wx]).mean()
+        else:
+            return -(layer_t[:, :, y:y+wy, x:x+wx] * weight.view(1,-1,1,1)).mean()
     return inner
 #%%
 maxind = np.unravel_index(L1cc_map.argmax(), L1cc_map.shape)
-dirvect = corrtsr[0,:,maxind[0],maxind[1]]
+dirvect = corrtsr[0, :, maxind[0], maxind[1]]
 obj = neuron_weight("features_%d"%(layer_idx), x=maxind[1], y=maxind[0], weight=torch.from_numpy(dirvect).cuda())#,iCh
 # obj = channel_weight("features_%d"%(layer_idx), weight=torch.from_numpy(dirvect).cuda())
 images = render.render_vis(VGG, obj, transforms=[], show_inline=False, thresholds=(512,))
@@ -236,7 +240,7 @@ plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_chan_vect.PNG"%np.random.randint(
 #%% std will not rescue it.
 stdvect = featStdtsr[:, maxind[0]-2:maxind[0]+2, maxind[1]-2:maxind[1]+2].mean((1, 2))
 weight = torch.from_numpy(dirvect*stdvect).cuda()
-obj = localpop_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
+obj = localgroup_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
 images = render.render_vis(VGG, obj, transforms=[], show_inline=False, thresholds=(512,))
 plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_locpop_vectstd.PNG"%np.random.randint(1000)),images[0][0,:])
 #%%
@@ -245,7 +249,7 @@ weight = dirvect*stdvect
 threshold = np.percentile(weight, (10, 90))
 weight[np.logical_and(weight>threshold[0], weight<threshold[1])]=0
 weight = torch.from_numpy(weight).cuda()
-obj = localpop_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
+obj = localgroup_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
 images = render.render_vis(VGG, obj, transforms=[], show_inline=False, thresholds=(512,))
 plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_locpop_vectstd_sparse.PNG"%np.random.randint(1000)),images[0][0,:])
 
@@ -257,7 +261,7 @@ weight = dirvect*stdvect
 threshold = np.percentile(weight, (0, 95))
 weight[np.logical_and(weight > threshold[0], weight < threshold[1])]=0
 weight = torch.from_numpy(weight).cuda()
-obj = localpop_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
+obj = localgroup_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2, wx=4, wy=4, weight=weight)
 all_transforms = [
     transform.pad(16),
     transform.jitter(8),
@@ -287,3 +291,111 @@ plt.ylabel("corr coef")
 plt.xlabel("sorted feature ")
 plt.savefig(join(savedir,r"Alfa-Manif-Exp3-sorted_cc.png"))
 plt.show()
+#%%
+ccdata = loadmat(r"E:\OneDrive - Washington University in St. Louis\CNNFeatCorr\Beto_Evol_Exp11_conv3_1.mat")
+cc_tsr = ccdata['cc_tsr']
+#%%
+from matplotlib import use as usebackend
+import matplotlib.pylab as plt
+# usebackend("Qt4Agg")
+#%%
+plt.figure(figsize=[5, 5])
+plt.matshow(np.mean(np.abs(cc_tsr), axis=2)[:,:,11])
+plt.axis('image'); plt.axis('off')
+plt.colorbar()
+plt.show()
+# np.sum(np.abs(cc_tsr),axis=2)[:,:,9]
+#%%
+corrheatmap = np.mean(np.abs(cc_tsr), axis=2)[:, :, 11]
+sortidx = np.argsort(-corrheatmap, axis=None)
+np.unravel_index(sortidx[:10], corrheatmap.shape)
+#%%
+center = [32,36]
+#%%
+plt.plot(np.mean(cc_tsr[32-3:32+3,36-3:36+3,:,11],axis=(0,1)))
+plt.show()
+#%%
+from lucent.optvis import render, param, transform, objectives
+from matver_CNN import getMatVGG, lucent_layernames
+matvgg = getMatVGG()
+layernames = lucent_layernames(matvgg)
+matvgg.cuda()
+#%%
+savedir = r"E:\OneDrive - Washington University in St. Louis\InterpretCorrCoef"
+from os.path import join
+#%%
+# maxind = np.unravel_index(L1cc_map.argmax(), L1cc_map.shape)
+dirvect = np.mean(cc_tsr[32-3:32+3,36-3:36+3,:,11],axis=(0,1))
+layer_idx = 10
+# obj = neuron_weight("features_%d"%(layer_idx), x=maxind[1], y=maxind[0], weight=torch.from_numpy(dirvect).cuda())#,iCh
+# obj = channel_weight("features_%d"%(layer_idx), weight=torch.from_numpy(dirvect).cuda())
+obj = objectives.channel("features_%d"%(layer_idx),n_channel=dirvect.argmax())
+images = render.render_vis(matvgg, obj, transforms=[], show_inline=False, preprocess=False, thresholds=(512,))
+plt.imsave(join(savedir, r"Beto-Evol-Exp11-%04d_chan_vect.PNG"%np.random.randint(1000)),images[0][0,:])
+#%%
+RGBmean = torch.tensor([123.6800, 116.7790, 103.9390]).cuda().reshape([1, 3, 1, 1])
+def matVGG_preprocess(x):
+    return 255 * x - RGBmean
+#%%
+# obj = objectives.channel("features_%d" % (layer_idx), n_channel=dirvect.argmax())
+weight_vec = dirvect
+threshold = np.percentile(dirvect,90)
+weight_vec[weight_vec < threshold] = 0
+weight_vec = torch.tensor(weight_vec).cuda()
+# obj = neuron_weight("features_%d" % (layer_idx), weight=weight_vec, x=36, y=32, batch=None)
+obj = localgroup_weight("features_%d" % (layer_idx), weight=weight_vec, x=34, y=30, wx=5, wy=5, batch=None)
+images = render.render_vis(matvgg, obj, show_inline=False, preprocess=False, transforms=[matVGG_preprocess], thresholds=(256,))
+#%%
+perm_idx = torch.randperm(256)
+obj = neuron_weight("features_%d" % (layer_idx), weight=weight_vec[perm_idx], x=36, y=32, batch=None)
+images = render.render_vis(matvgg, obj, show_inline=False, preprocess=False, transforms=[matVGG_preprocess], thresholds=(128,))
+#%%
+from lucent.optvis.transform import pad, jitter, random_rotate, random_scale
+tfms = [pad(12, mode="constant", constant_value=.5),
+        jitter(8),
+        random_scale([1 + (i - 5) / 50. for i in range(11)]),
+        random_rotate(list(range(-10, 11)) + 5 * [0]),
+        jitter(4),
+        matVGG_preprocess]
+obj = objectives.channel("features_%d" % (2), n_channel=12, batch=None)
+#%%
+tfms = [pad(12, mode="constant", constant_value=.5),
+        jitter(8),
+        random_scale([1 + (i - 5) / 50. for i in range(11)]),
+        random_rotate(list(range(-10, 11)) + 5 * [0]),
+        jitter(4),
+        matVGG_preprocess]
+obj = objectives.channel("classifier_%d" % (6), n_channel=949, batch=None)
+param_f = lambda: param.image(224, fft=False, decorrelate=True)
+images = render.render_vis(matvgg, obj, param_f, show_inline=False, preprocess=False, transforms=tfms, thresholds=(64, 128, 192, 256,),verbose=True)
+#%% VGG pytorch as reference
+VGG = models.vgg16(pretrained=True)
+#%%
+tfms = [pad(12, mode="constant", constant_value=.5),
+        jitter(8),
+        random_scale([1 + (i - 5) / 50. for i in range(11)]),
+        random_rotate(list(range(-10, 11)) + 5 * [0]),
+        jitter(4),]
+images = render.render_vis(VGG.cuda(), obj, show_inline=False, preprocess=True, transforms=[], thresholds=(256,))
+#%% CPPN parametrization to find optimal image for the lemon neurons
+tfms = [pad(12, mode="constant", constant_value=.5),
+        jitter(8),
+        random_scale([1 + (i - 5) / 50. for i in range(11)]),
+        random_rotate(list(range(-10, 11)) + 5 * [0]),
+        jitter(4),]
+cppn_param_f = lambda: param.cppn(128)
+# We initialize an optimizer with lower learning rate for CPPN
+cppn_opt = lambda params: torch.optim.Adam(params, 5e-3) # seems 5E-3 is the sweet spot for
+# obj = objectives.channel("features_%d"%(layer_idx),iCh)#, x=maxind[1], y=maxind[0]
+obj = objectives.channel("classifier_%d" % (6), n_channel=949, batch=None)
+images = render.render_vis(VGG, obj, cppn_param_f, cppn_opt, transforms=tfms, show_inline=False, thresholds=(64,128,192,256),verbose=True)
+#%% Note you should not reuse tfms across exp or extra staff will attach to it and generate artifacts!
+tfms = [pad(12, mode="constant", constant_value=.5),
+        jitter(8),
+        random_scale([1 + (i - 5) / 50. for i in range(11)]),
+        random_rotate(list(range(-10, 11)) + 5 * [0]),
+        jitter(4),]
+param_f = lambda: param.image(128, fft=True, decorrelate=True)
+fft_opt = lambda params: torch.optim.Adam(params, 10e-2)
+obj = objectives.channel("classifier_%d" % (6), n_channel=951, batch=None)
+images = render.render_vis(VGG, obj, param_f, fft_opt, transforms=tfms, show_inline=False, thresholds=(64, 128, 256), verbose=True)
