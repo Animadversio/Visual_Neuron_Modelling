@@ -2,7 +2,8 @@
 Adapted from Lucid official tutorial notebook
 https://colab.research.google.com/github/tensorflow/lucid/blob/master/notebooks/tutorial.ipynb
 
-Trying out different visualization options 
+Trying out different visualization options
+More recent Pytorch implementation called Lucent is used in another script
 '''
 #%%
 import numpy as np
