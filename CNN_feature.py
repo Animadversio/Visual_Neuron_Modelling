@@ -96,7 +96,7 @@ class CNNfeature:
 #%%
 DataStore_Dir = r"D:\Tuning_Interpretation"
 # https://stackoverflow.com/questions/44100837/disable-keras-batch-normalization-standardization
-for Expi in range(2, 11):
+for Expi in range(11, 46):
     t00 = time()
     ftr = (ExpTable.Expi == Expi) & ExpTable.expControlFN.str.contains("generate") & ExpTable.Exp_collection.str.contains("Manifold")
     print(ExpTable.comments[ftr].str.cat())
