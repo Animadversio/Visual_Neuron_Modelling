@@ -131,7 +131,7 @@ print("%.1f sec spent on model fitting." % t2-t1)
 #%% Prediction
 pred_score = RdgCV.predict(out_feats_all.reshape((out_feats_all.shape[0], -1)))
 Lss_pred_score = LssCV.predict(out_feats_all.reshape((out_feats_all.shape[0], -1)))
-#%%
+#%% Plot score traces
 plt.figure()
 plt.plot(scores, alpha=0.5, label="Neuro Rsp")
 plt.plot(pred_score, alpha=0.5, label="Ridge Model Pred")
