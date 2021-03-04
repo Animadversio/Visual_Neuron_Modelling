@@ -268,7 +268,7 @@ layers {
   convolution_param {
     num_output: 512
     pad: 2
-    hole: 2
+    dilation: 2
     kernel_size: 3
   }
 }
@@ -288,7 +288,7 @@ layers {
   convolution_param {
     num_output: 512
     pad: 2
-    hole: 2
+    dilation: 2
     kernel_size: 3
   }
 }
@@ -308,7 +308,7 @@ layers {
   convolution_param {
     num_output: 512
     pad: 2
-    hole: 2
+    dilation: 2
     kernel_size: 3
   }
 }
@@ -355,7 +355,7 @@ layers {
   convolution_param {
     num_output: 1024
     pad: 12
-    hole: 12
+    dilation: 12
     kernel_size: 3
   }
 }

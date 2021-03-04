@@ -64,10 +64,6 @@ RGB_mean = torch.reshape(RGB_mean, (1, 3, 1, 1))
 class upconvGAN(nn.Module):
     def __init__(self, name="fc6", pretrained=True):
         super(upconvGAN, self).__init__()
-        savepath = {"fc6": join(netsdir, r"upconv/fc6/generator_state_dict.pt"),
-                    "fc7": join(netsdir, r"upconv/fc7/generator_state_dict.pt"),
-                    "fc8": join(netsdir, r"upconv/fc8/generator_state_dict.pt"),
-                    "pool5": join(netsdir, r"upconv/pool5/generator_state_dict.pt")}
         self.name = name
         if name == "fc6" or name == "fc7":
             self.G = nn.Sequential(OrderedDict([
@@ -151,14 +147,18 @@ class upconvGAN(nn.Module):
         ('relu_deconv1', nn.LeakyReLU(negative_slope=0.3, inplace=True)),
         ('deconv0', nn.ConvTranspose2d(32, 3, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))), ]))
             self.codelen = self.G[0].in_channels
-        # load pre-trained weight
+        # load pre-trained weight from online or local folders
         if pretrained:
             if load_urls:
                 SDnew = load_statedict_from_online(name)
             else:
+                savepath = {"fc6": join(netsdir, r"upconv/fc6/generator_state_dict.pt"),
+                            "fc7": join(netsdir, r"upconv/fc7/generator_state_dict.pt"),
+                            "fc8": join(netsdir, r"upconv/fc8/generator_state_dict.pt"),
+                            "pool5": join(netsdir, r"upconv/pool5/generator_state_dict.pt")}
                 SD = torch.load(savepath[name])
                 SDnew = OrderedDict()
-                for name, W in SD.items():
+                for name, W in SD.items():  # discard this inconsistency
                     name = name.replace(".1.", ".")
                     SDnew[name] = W
             self.G.load_state_dict(SDnew)
@@ -169,7 +169,27 @@ class upconvGAN(nn.Module):
     def visualize(self, x, scale=1.0):
         raw = self.G(x)[:, [2, 1, 0], :, :]
         return torch.clamp(raw + RGB_mean.to(raw.device), 0, 255.0) / 255.0 * scale
+#%%
+class multiZupconvGAN(nn.Module):
+    def __init__(self, blendlayer="conv5_1", name="fc6", pretrained=True):
+        super(multiZupconvGAN, self).__init__()
+        G = upconvGAN(name=name, pretrained=pretrained)
+        layeri = list(G.G._modules).index(blendlayer)
+        self.preG = G.G[:layeri + 1]
+        self.posG = G.G[layeri + 1:]
+        self.c_num = self.preG[-1].out_channels
 
+    def forward(self, codes, z_alpha):
+        b_num = codes.size(0)
+        z_num = codes.size(1)
+        medtsr = self.preG(codes.view(b_num * z_num, -1))
+        blendtsr = (medtsr.view((b_num, z_num) + tuple(medtsr.size()[1:])) * z_alpha[:, :, :, None, None]).sum(dim=1)
+        imgs = self.posG(blendtsr)
+        return imgs[:, [2, 1, 0], :, :]
+
+    def visualize(self, codes, z_alpha, scale=1.0):
+        raw = self.forward(codes, z_alpha)
+        return torch.clamp(raw + RGB_mean.to(raw.device), 0, 255.0) / 255.0 * scale
 # # layer name translation
 # # "defc7.weight", "defc7.bias", "defc6.weight", "defc6.bias", "defc5.weight", "defc5.bias".
 # # "defc7.1.weight", "defc7.1.bias", "defc6.1.weight", "defc6.1.bias", "defc5.1.weight", "defc5.1.bias".
@@ -179,6 +199,23 @@ class upconvGAN(nn.Module):
 #     name = name.replace(".1.", ".")
 #     SDnew[name] = W
 # UCG.G.load_state_dict(SDnew)
+#%%
+G = upconvGAN("fc7")
+G.G.requires_grad_(False)
+blendlayer = 'conv5_1'
+layeri = list(G.G._modules).index(blendlayer)
+preG = G.G[:layeri+1]
+posG = G.G[layeri+1:]
+c_num = preG[-1].out_channels
+z_num = 5
+b_num = 2
+#%%
+codes = torch.randn((b_num, z_num, 4096), requires_grad=True)
+z_alpha = torch.full((b_num, z_num, c_num), 1 / z_num, requires_grad=True)
+medtsr = preG(codes.view(b_num * z_num, -1))
+blendtsr = (medtsr.view((b_num, z_num)+tuple(medtsr.size()[1:])) * z_alpha[:,:,:,None,None]).sum(dim=1)
+imgs = posG(blendtsr)
+# nn.Sequential(*list(G.G._modules)[:blending_layer])
 #%% The first time to run this you need these modules
 if __name__ == "__main__":
     import sys
@@ -233,3 +270,7 @@ if __name__ == "__main__":
     G = load_generator(GAN="pool5")
     UCG = upconvGAN("pool5")
     test_FCconsisitency(G, UCG)
+
+#%% This can work~
+# G = upconvGAN("pool5")
+# G.G.load_state_dict(torch.hub.load_state_dict_from_url(r"https://drive.google.com/uc?export=download&id=1vB_tOoXL064v9D6AKwl0gTs1a7jo68y7",progress=True))

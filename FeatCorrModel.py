@@ -22,7 +22,7 @@ Pasupath = r"N:\Stimuli\2019-Manifold\pasupathy-wg-f-4-ori"
 Gaborpath = r"N:\Stimuli\2019-Manifold\gabor"
 imgnms = glob(MStats[Expi-1].meta.stimuli+"\\*") + glob(Pasupath+"\\*") + glob(Gaborpath+"\\*")
 imgfullpath_vect = [[path for path in imgnms if imgnm in path][0] for imgnm in imgnm_vect]
-#%%
+#%% 
 score_mat = np.frompyfunc(lambda psth: np.mean(psth[0,50:,:]),1,1)(MStats[2].manif.psth)
 score_mat = score_mat.astype(np.float)
 score_vect = score_mat.reshape(-1)
@@ -160,11 +160,11 @@ obj = channel(iCh)
 savedir = r"E:\OneDrive - Washington University in St. Louis\InterpretCorrCoef"
 from os.path import join
 images = render.render_vis(VGG, obj)
-plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_std.PNG"%np.random.randint(1000)),images[0][0,:])
+plt.imsave(join(savedir, r"Alfa-Manif-Exp3-%04d_std.PNG"%np.random.randint(1000)),images[0][0,:])
 
 param_f = lambda: param.image(128, fft=True, decorrelate=False)
 images2 = render.render_vis(VGG, obj, param_f, transforms=[], show_inline=False)
-plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_stdFFT.PNG"%np.random.randint(1000)),images2[0][0,:])
+plt.imsave(join(savedir, r"Alfa-Manif-Exp3-%04d_stdFFT.PNG"%np.random.randint(1000)),images2[0][0,:])
 #%%
 cppn_param_f = lambda: param.cppn(128)
 # We initialize an optimizer with lower learning rate for CPPN
@@ -253,7 +253,6 @@ obj = localgroup_weight("features_%d"%(layer_idx), x=maxind[1]-2, y=maxind[0]-2,
 images = render.render_vis(VGG, obj, transforms=[], show_inline=False, thresholds=(512,))
 plt.imsave(join(savedir,r"Alfa-Manif-Exp3-%04d_locpop_vectstd_sparse.PNG"%np.random.randint(1000)),images[0][0,:])
 
-
 #%%
 dirvect = corrtsr[0, :, maxind[0]-2:maxind[0]+2, maxind[1]-2:maxind[1]+2].mean((1,2))
 stdvect = featStdtsr[:, maxind[0]-2:maxind[0]+2, maxind[1]-2:maxind[1]+2].mean((1, 2))
@@ -284,15 +283,15 @@ plt.show()
 plt.plot(sorted(stdvect*dirvect))
 plt.ylabel("corr coef * std(feat)")
 plt.xlabel("sorted feature ")
-plt.savefig(join(savedir,r"Alfa-Manif-Exp3-sorted_weight.png"))
+plt.savefig(join(savedir, r"Alfa-Manif-Exp3-sorted_weight.png"))
 plt.show()
 plt.plot(sorted(dirvect))
 plt.ylabel("corr coef")
 plt.xlabel("sorted feature ")
-plt.savefig(join(savedir,r"Alfa-Manif-Exp3-sorted_cc.png"))
+plt.savefig(join(savedir, r"Alfa-Manif-Exp3-sorted_cc.png"))
 plt.show()
-#%%
-ccdata = loadmat(r"E:\OneDrive - Washington University in St. Louis\CNNFeatCorr\Beto_Evol_Exp11_conv3_1.mat")
+#%% Load the fit the data
+ccdata = loadmat(r"E:\OneDrive - Washington University in St. Louis\CNNFeatCorr\Beto_Evol_Exp11_conv5_3.mat")
 cc_tsr = ccdata['cc_tsr']
 #%%
 from matplotlib import use as usebackend
@@ -300,7 +299,8 @@ import matplotlib.pylab as plt
 # usebackend("Qt4Agg")
 #%%
 plt.figure(figsize=[5, 5])
-plt.matshow(np.mean(np.abs(cc_tsr), axis=2)[:,:,11])
+plt.matshow(np.mean(np.abs(cc_tsr), axis=2)[:,:,14])
+# plt.scatter([36], [32], c='red', s=50)
 plt.axis('image'); plt.axis('off')
 plt.colorbar()
 plt.show()
@@ -312,7 +312,7 @@ np.unravel_index(sortidx[:10], corrheatmap.shape)
 #%%
 center = [32,36]
 #%%
-plt.plot(np.mean(cc_tsr[32-3:32+3,36-3:36+3,:,11],axis=(0,1)))
+plt.plot(np.mean(cc_tsr[32-3:32+3,36-3:36+3, :, 11],axis=(0,1)))
 plt.show()
 #%%
 from lucent.optvis import render, param, transform, objectives
