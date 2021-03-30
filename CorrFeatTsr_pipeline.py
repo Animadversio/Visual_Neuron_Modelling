@@ -51,9 +51,9 @@ ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=
 # ToPILImage()(median_blur(input_tsr[-2:-1], (3, 3))[0]).show()
 # We want to remove the checkerboard noise!
 
-#%%
+#%% Loading the tool kit from the lib
 from CorrFeatTsr_lib import visualize_cctsr, visualize_cctsr_embed, Corr_Feat_Machine, Corr_Feat_pipeline
-#%% Load image names and psths
+#%% Load full path to images and psths
 def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)]):
     """
     test_code
@@ -120,7 +120,7 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)]):
 #     nunit = 1
 # psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
 # scorecol = [np.mean(P[ui-1, 50:200, :],axis=0).astype(np.float) for P in psthlist]
-#%%
+#%% Define image loading and pre precessing functions
 RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
 RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
 preprocess = transforms.Compose([transforms.ToTensor(),
@@ -128,6 +128,8 @@ preprocess = transforms.Compose([transforms.ToTensor(),
 def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False):
     """Prepare the input image batch!
     Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution.
+    INput: list of image full path
+    Output: 4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
@@ -156,6 +158,8 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
 def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=True):
     """Prepare the input image batch!
     Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution, put the image embedded in a gray background.
+    INput: list of image full path
+    Output: 4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
@@ -184,10 +188,11 @@ def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=
     else:
         input_tsr = (input_tsr - RGBmean) / RGBstd
         return input_tsr
-#%%
+#%% Experiment Pipeline
 VGG = models.vgg16(pretrained=True)
 VGG.requires_grad_(False)
 VGG.features.cuda()
+ccdir = "S:\corrFeatTsr"
 figdir = join("S:\corrFeatTsr", "VGGsummary")
 layers2plot = ["conv5_3", "conv4_3",  "conv3_3", "conv2_2", ]
 for Expi in range(1, len(EStats)+1):
@@ -201,12 +206,14 @@ for Expi in range(1, len(EStats)+1):
     featFetcher.register_hooks(VGG, ["conv2_2", "conv3_3","conv4_3", "conv5_3"])
     featFetcher.init_corr()
     score_vect, imgfullpath_vect = load_score_mat(EStats, MStats, Expi, "Evol", wdws=[(50, 200)])
-    Corr_Feat_pipeline(VGG.features, featFetcher, score_vect, imgfullpath_vect, lambda x:loadimg_preprocess(x, borderblur=True, imgpix=imgpix), online_compute=True, batchsize=121, savedir=figdir, savenm="%s_Exp%d_Evol_nobdr" % (Animal, Expi), )
+    Corr_Feat_pipeline(VGG.features, featFetcher, score_vect, imgfullpath_vect,
+        lambda x:loadimg_preprocess(x, borderblur=True, imgpix=imgpix), online_compute=True,
+        batchsize=121, savedir=ccdir, savenm="%s_Exp%d_Evol_nobdr" % (Animal, Expi), )
     figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, "Evol_nobdr", titstr, figdir=figdir)
     scorecol_M, imgfullpath_vect_M = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50,200)])
     Corr_Feat_pipeline(VGG.features, featFetcher, scorecol_M, imgfullpath_vect_M,
            lambda x: loadimg_preprocess(x, borderblur=True, imgpix=imgpix), online_compute=True,
-                       batchsize=121, savedir=figdir, savenm="%s_Exp%d_EM_nobdr" % (Animal, Expi), )
+       batchsize=121, savedir=ccdir, savenm="%s_Exp%d_EM_nobdr" % (Animal, Expi), )
     figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, "EM_sgtr_nobdr", titstr, figdir=figdir)
     featFetcher.clear_hook()
 #%% Final version VGG16
