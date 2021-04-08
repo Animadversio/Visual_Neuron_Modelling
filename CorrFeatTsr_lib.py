@@ -50,7 +50,6 @@ layername_dict = {"vgg16": ['conv1_1', 'conv1_1_relu',
 class Corr_Feat_Machine:
     """The machinery to hook up a layer in CNN and to compute correlation online with certain output
     """
-
     def __init__(self):
         self.feat_tsr = {}
         self.hooks = []
@@ -307,6 +306,79 @@ def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_f
     featFetcher.calc_corr()
     np.savez(join(savedir, "%s_corrTsr.npz" % (savenm)), **featFetcher.make_savedict())
 
+#%%
+import torch.nn.functional as F
+from torchvision import models, transforms
+from skimage.io import imread
+from kornia.filters import median_blur, gaussian_blur2d
+
+RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
+RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
+preprocess = transforms.Compose([transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False):
+    """Prepare the input image batch!
+    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution.
+    INput: list of image full path
+    Output: 4d image tensor ready for torch network to process
+    """
+    ppimgs = []
+    for img_path in (imgfullpath):  # should be taken care of by the CNN part
+        curimg = imread(img_path)
+        x = preprocess(curimg)
+        ppimgs.append(x.unsqueeze(0))
+    input_tsr = torch.cat(tuple(ppimgs), dim=0)
+    # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow, no use
+    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
+    input_tsr = F.interpolate(input_tsr, size=[imgpix, imgpix], align_corners=True, mode='bilinear')
+    input_tsr = F.interpolate(input_tsr, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
+    if borderblur:
+        border = round(fullimgsz * 0.05)
+        bkgrd_tsr = 0.5 * torch.ones([1, 3, fullimgsz, fullimgsz])
+        msk = torch.ones([fullimgsz - 2 * border, fullimgsz - 2 * border])
+        msk = F.pad(msk, [border, border, border, border], mode="constant", value=0)
+        blurmsk = (1 - msk).reshape([1, 1, fullimgsz, fullimgsz]);
+        blurmsk_trans = gaussian_blur2d(blurmsk, (5, 5), sigma=(3, 3))
+        # bkgrdtsr = gaussian_blur2d(input_tsr*blurmsk, (5, 5), sigma=(3, 3))
+        final_tsr = bkgrd_tsr * blurmsk_trans + input_tsr * (1 - blurmsk_trans)
+        final_tsr = (final_tsr - RGBmean) / RGBstd
+        return final_tsr
+    else:
+        return input_tsr
+
+def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=True):
+    """Prepare the input image batch!
+    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution, put the image embedded in a gray background.
+    INput: list of image full path
+    Output: 4d image tensor ready for torch network to process
+    """
+    ppimgs = []
+    for img_path in (imgfullpath):  # should be taken care of by the CNN part
+        curimg = imread(img_path)
+        x = transforms.ToTensor()(curimg)
+        ppimgs.append(x.unsqueeze(0))
+    input_tsr = torch.cat(tuple(ppimgs), dim=0)
+    # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow, no use
+    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
+    imgpix = min(imgpix, fullimgsz)
+    input_tsr = F.interpolate(input_tsr, size=[imgpix, imgpix], align_corners=True, mode='bilinear')
+    padbef = (fullimgsz - imgpix) // 2
+    padaft = (fullimgsz - imgpix) - padbef
+    input_tsr = F.pad(input_tsr, [padbef, padaft, padbef, padaft, 0, 0, 0, 0], mode="constant", value=0.5)
+    if borderblur:
+        border = round(imgpix*0.05)
+        bkgrd_tsr = torch.ones([1,3,fullimgsz,fullimgsz])
+        msk = torch.ones([imgpix-2*border, imgpix-2*border])
+        msk = F.pad(msk, [padbef+border, padaft+border, padbef+border, padaft+border], mode="constant", value=0.5)
+        blurmsk = (1-msk).reshape([1,1,fullimgsz,fullimgsz]);
+        blurmsk_trans = gaussian_blur2d(blurmsk, (5,5), sigma=(3, 3))
+        # bkgrdtsr = gaussian_blur2d(input_tsr*blurmsk, (5, 5), sigma=(3, 3))
+        final_tsr = bkgrd_tsr*blurmsk_trans + input_tsr*(1 - blurmsk_trans)
+        final_tsr = (final_tsr - RGBmean) / RGBstd
+        return final_tsr
+    else:
+        input_tsr = (input_tsr - RGBmean) / RGBstd
+        return input_tsr
 #%%
 #
 # figdir = join("S:\corrFeatTsr", "VGGsummary")

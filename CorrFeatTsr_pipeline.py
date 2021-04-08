@@ -1,7 +1,7 @@
 # Alias the disks for usage
-# !subst N: E:\Network_Data_Sync
-# !subst S: E:\Network_Data_Sync
-# !subst O: "E:\OneDrive - Washington University in St. Louis"
+!subst N: E:\Network_Data_Sync
+!subst S: E:\Network_Data_Sync
+!subst O: "E:\OneDrive - Washington University in St. Louis"
 #%%
 from scipy.io import loadmat
 from skimage.io import imread, imread_collection
