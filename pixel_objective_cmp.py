@@ -183,7 +183,7 @@ def RFinterp_map(maps_dict, res=256, RFfilter=False):
     return maps_RFinterp, RFinterpMap_merge, maps_RFinterp_rsz, RFinterpMap_merge_rsz
 
 # maps_RFintp, RFintpMap_merge, maps_RFintp_rsz, RFintpMap_merge_rsz = RFinterp_map(maps.mean)
-#%%
+#%% Compare the Correlated Feature Mask with the
 ccdir = "S:\corrFeatTsr"
 figdir = r"O:\ProtoObjectivenss\summary"
 mat_path = r"O:\Mat_Statistics"
