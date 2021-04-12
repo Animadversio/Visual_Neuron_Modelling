@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import SGD, Adam
-from tqdm import tqdm
 from CorrFeatTsr_lib import layername_dict
 from os.path import join
 from glob import glob
@@ -201,6 +200,7 @@ class FactorRegr_Machine(nn.Module):
         #     print("Use pre-registered feature network")
 
     def forward_from_feattrs(self):
+        """Predict score after passing image through net you hooked"""
         for layer, part_tsr in self.feat_tsr.items():
             if self.batchnorm:
                 compress_tsr = self.feat_trans[layer](self.bn_layer[layer](part_tsr.to(self.device)))
@@ -233,7 +233,7 @@ class FactorRegr_Machine(nn.Module):
                 if layer not in self.full_predtsr:
                     self.full_predtsr[layer] = score_vec.detach().cpu().squeeze()
                 else:
-                    self.full_predtsr[layer] = torch.cat((self.full_predtsr[layer], score_vec.detach().cpu().squeeze()), dim=0)
+                    self.full_predtsr[layer] = torch.cat((self.full_predtsr[layer], score_vec.detach().cpu().flatten()), dim=0)
         return prediction
 
     def record_score(self, score_tsr):
@@ -246,7 +246,7 @@ class FactorRegr_Machine(nn.Module):
         """
         score_tsr: a n torch tensor as target
         """
-        self.predict() # get predictions by passing activations through the
+        self.predict()  # get predictions by passing activations through the
         if self.full_scoretsr is None:
             self.full_scoretsr = score_tsr.detach().cpu()
         else:
@@ -331,10 +331,6 @@ class FactorRegr_Machine(nn.Module):
             savedict[layer].NF = NF
             savedict[layer].borderclip = Bdr
         return savedict
-    # def record_prediction(self, score_tsr):
-    #     for layer, pred_score in self.prediction.items():
-    #         if layer not in self.full_predvec
-
 
     # def update_model_rep(self, scorecol):
     #     """Multiple measurement of response for the same image.
@@ -392,12 +388,8 @@ def inspect_model_weights(featFetcher):
                 summary_param(featFetcher.bn_layer[layer].weight, "bn scale")
                 summary_param(featFetcher.bn_layer[layer].bias, "bn bias")
 
-import os
-from CorrFeatTsr_lib import visualize_cctsr, visualize_cctsr_embed, Corr_Feat_Machine, Corr_Feat_pipeline, loadimg_preprocess, loadimg_embed_preprocess
-from data_loader import load_score_mat, mat_path
-from sklearn.model_selection import train_test_split
-from torchvision.models import vgg16, alexnet
 
+from CorrFeatTsr_lib import loadimg_preprocess
 def predict_cmp(featNet, featFetcher, scorevec, imgfps, imgloader=loadimg_preprocess, batchsize=60, summarystr=""):
     featFetcher.clear_record()
     validN = len(imgfps)
@@ -432,131 +424,139 @@ def visualize_featmasks(featFetcher, borderclip=1, savedir="", savenm=""):
     plt.savefig(join(savedir, "%s_featmaps.png"%savenm))
     plt.show()
 #%%
-VGG = vgg16(pretrained=True).cuda()
-VGG.requires_grad_(False)
-VGG.eval()
-#%%
-ANet = alexnet(pretrained=True).cuda()
-ANet.requires_grad_(False)
-ANet.eval()
-#%%
-datadir = r"S:\FeatTsr"
-Animal = "Alfa"
-MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
-EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
-Expi = 3
-#%%
-savedir = join(datadir, "%s_Exp%02d_E"%(Animal, Expi))
-os.makedirs(savedir, exist_ok=True)
-score_vect, imgfullpath_vect = load_score_mat(EStats, MStats, Expi, "Evol", wdws=[(50, 200)], stimdrive="S")
-# normalize score and turn into tensor
-score_M = score_vect.mean()
-score_S = score_vect.std()
-score_norm = (score_vect - score_M) / score_S
-#%  Split train and test, with shuffle
-score_tsr = torch.tensor(score_norm).float()
-imgN_M = len(imgfullpath_vect)
-train_idx, valid_idx = train_test_split(range(imgN_M), test_size=0.2, random_state=35, shuffle=True, )
-imgfp_train, imgfp_valid = [imgfullpath_vect[idx] for idx in train_idx], [imgfullpath_vect[idx] for idx in valid_idx]
-score_train, score_valid = score_tsr[train_idx], score_tsr[valid_idx]
-trainN, validN = len(train_idx), len(valid_idx)
-#%%
-epocsN = 15
-batchsize = 60
-imgpix = 224
-# Set up models and config
-featNet = ANet.features
-featFetcher = FactorRegr_Machine(Nfactor=5, spatial_nonneg=True, )
-# featFetcher.register_hooks(ANet, ["conv3_3", "conv4_3", "conv5_3"])  # "conv2_2",
-featFetcher.register_hooks(ANet, ["conv2", "conv3", "conv4", "conv5"], netname="alexnet")
-featFetcher.init_model(img_dim=imgpix)
-# Set up training parameters
-featFetcher.ftL2_lambda = 2E0
-featFetcher.spL2_lambda = 2E0
-featFetcher.smooth_lambda = 2E0
-featFetcher.lr = 5E-3  # ANet,
-logstr = "fact5_Spnneg_init"  # "Sp_nneg_mod"
+if __name__ == "__main__":
+    import os
+    from CorrFeatTsr_lib import visualize_cctsr, visualize_cctsr_embed, Corr_Feat_Machine, Corr_Feat_pipeline, \
+        loadimg_preprocess, loadimg_embed_preprocess
+    from data_loader import load_score_mat, mat_path
+    from sklearn.model_selection import train_test_split
+    from torchvision.models import vgg16, alexnet
+    #%%
+    VGG = vgg16(pretrained=True).cuda()
+    VGG.requires_grad_(False)
+    VGG.eval()
+    #%%
+    ANet = alexnet(pretrained=True).cuda()
+    ANet.requires_grad_(False)
+    ANet.eval()
+    #%%
+    datadir = r"S:\FeatTsr"
+    Animal = "Alfa"
+    MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
+    EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
+    Expi = 3
+    #%%
+    savedir = join(datadir, "%s_Exp%02d_E"%(Animal, Expi))
+    os.makedirs(savedir, exist_ok=True)
+    score_vect, imgfullpath_vect = load_score_mat(EStats, MStats, Expi, "Evol", wdws=[(50, 200)], stimdrive="S")
+    # normalize score and turn into tensor
+    score_M = score_vect.mean()
+    score_S = score_vect.std()
+    score_norm = (score_vect - score_M) / score_S
+    #%  Split train and test, with shuffle
+    score_tsr = torch.tensor(score_norm).float()
+    imgN_M = len(imgfullpath_vect)
+    train_idx, valid_idx = train_test_split(range(imgN_M), test_size=0.2, random_state=35, shuffle=True, )
+    imgfp_train, imgfp_valid = [imgfullpath_vect[idx] for idx in train_idx], [imgfullpath_vect[idx] for idx in valid_idx]
+    score_train, score_valid = score_tsr[train_idx], score_tsr[valid_idx]
+    trainN, validN = len(train_idx), len(valid_idx)
+    #%%
+    epocsN = 15
+    batchsize = 60
+    imgpix = 224
+    # Set up models and config
+    featNet = ANet.features
+    featFetcher = FactorRegr_Machine(Nfactor=5, spatial_nonneg=True, )
+    # featFetcher.register_hooks(ANet, ["conv3_3", "conv4_3", "conv5_3"])  # "conv2_2",
+    featFetcher.register_hooks(ANet, ["conv2", "conv3", "conv4", "conv5"], netname="alexnet")
+    featFetcher.init_model(img_dim=imgpix)
+    # Set up training parameters
+    featFetcher.ftL2_lambda = 2E0
+    featFetcher.spL2_lambda = 2E0
+    featFetcher.smooth_lambda = 2E0
+    featFetcher.lr = 5E-3  # ANet,
+    logstr = "fact5_Spnneg_init"  # "Sp_nneg_mod"
 
-#%%
-#%% training pipeline
-for epi in tqdm(range(epocsN)):
-    print("Current epocs %02d"%epi)
-    csr = 0
-    pbar = tqdm(total=trainN)
-    while csr < trainN:
-        cend = min(csr + batchsize, trainN)
-        input_tsr = loadimg_preprocess(imgfp_train[csr:cend], borderblur=True)  # imgpix=120, fullimgsz=224
-        # input_tsr = loadimg_embed_preprocess(imgfullpath_vect_M[csr:cend], imgpix=imgpix, fullimgsz=(256, 256))
-        # Pool through featNet
-        with torch.no_grad():
-            part_tsr = featNet(input_tsr.cuda()).cpu()
-        featFetcher.update_model(score_train[csr:cend])
-        # update bar!
-        pbar.update(cend-csr)
-        csr = cend
-    pbar.close()
-    print("Epoc %02d Train summary"%epi)
-    featFetcher.record_summary()
+    #%%
+    #%% training pipeline
+    for epi in tqdm(range(epocsN)):
+        print("Current epocs %02d"%epi)
+        csr = 0
+        pbar = tqdm(total=trainN)
+        while csr < trainN:
+            cend = min(csr + batchsize, trainN)
+            input_tsr = loadimg_preprocess(imgfp_train[csr:cend], borderblur=True)  # imgpix=120, fullimgsz=224
+            # input_tsr = loadimg_embed_preprocess(imgfullpath_vect_M[csr:cend], imgpix=imgpix, fullimgsz=(256, 256))
+            # Pool through featNet
+            with torch.no_grad():
+                part_tsr = featNet(input_tsr.cuda()).cpu()
+            featFetcher.update_model(score_train[csr:cend])
+            # update bar!
+            pbar.update(cend-csr)
+            csr = cend
+        pbar.close()
+        print("Epoc %02d Train summary"%epi)
+        featFetcher.record_summary()
+        featFetcher.visualize_weights(savestr=logstr, figdir=savedir)
+        # inspect_model_weights(featFetcher)
+        predict_cmp(featNet, featFetcher, score_valid, imgfp_valid,
+                    imgloader=loadimg_preprocess, batchsize=60, summarystr="Epoch %02d Validation " % epi)
+        featFetcher.clear_record()
+    inspect_model_weights(featFetcher)
     featFetcher.visualize_weights(savestr=logstr, figdir=savedir)
-    # inspect_model_weights(featFetcher)
-    predict_cmp(featNet, featFetcher, score_valid, imgfp_valid,
-                imgloader=loadimg_preprocess, batchsize=60, summarystr="Epoch %02d Validation " % epi)
-    featFetcher.clear_record()
-inspect_model_weights(featFetcher)
-featFetcher.visualize_weights(savestr=logstr, figdir=savedir)
-# featFetcher.clear_hook()
-featFetcher.featnet = None
-torch.save(featFetcher.state_dict(), join(savedir, "FactModel_weights_%s.pt"%logstr))
-featFetcher.featnet = ANet.features
-#%%
-predict_cmp(ANet.features, featFetcher, score_tsr, imgfullpath_vect, imgloader=loadimg_preprocess)
-featFetcher.forward(loadimg_preprocess(imgfullpath_vect[-40:]).cuda()) # feature maps of last generation
-#%%
-visualize_featmasks(featFetcher, savedir=savedir, savenm="finalgen_")
-#%%
-tmp = FactorRegr_Machine(Nfactor=5)
-tmp.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
-tmp.init_model( img_dim=imgpix, ckpt_path=join(savedir, "FactModel_weights.pt"))  # ANet,
-# imgtsr = loadimg_preprocess(imgfullpath_vect[-11:-1])
-#%% OK I need to do something to normalize the activations and weights.
-# Ampl summary
-# featFetcher.visualize_weights(savestr=logstr, figdir="")
-#%%
-featFetcher.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
-predtsr = predict_cmp(ANet.features, featFetcher, score_tsr, imgfullpath_vect, imgloader=loadimg_preprocess)
+    # featFetcher.clear_hook()
+    featFetcher.featnet = None
+    torch.save(featFetcher.state_dict(), join(savedir, "FactModel_weights_%s.pt"%logstr))
+    featFetcher.featnet = ANet.features
+    #%%
+    predict_cmp(ANet.features, featFetcher, score_tsr, imgfullpath_vect, imgloader=loadimg_preprocess)
+    featFetcher.forward(loadimg_preprocess(imgfullpath_vect[-40:]).cuda()) # feature maps of last generation
+    #%%
+    visualize_featmasks(featFetcher, savedir=savedir, savenm="finalgen_")
+    #%%
+    tmp = FactorRegr_Machine(Nfactor=5)
+    tmp.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
+    tmp.init_model( img_dim=imgpix, ckpt_path=join(savedir, "FactModel_weights.pt"))  # ANet,
+    # imgtsr = loadimg_preprocess(imgfullpath_vect[-11:-1])
+    #%% OK I need to do something to normalize the activations and weights.
+    # Ampl summary
+    # featFetcher.visualize_weights(savestr=logstr, figdir="")
+    #%%
+    featFetcher.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
+    predtsr = predict_cmp(ANet.features, featFetcher, score_tsr, imgfullpath_vect, imgloader=loadimg_preprocess)
 
-#%% Visualize weights
-layer = "conv4_3"
-for layer in featFetcher.feat_trans:
-    NF = featFetcher.Nfactor
-    C, H, W = featFetcher.feat_tsr_shape[layer]
-    feat_vecs = featFetcher.feat_trans[layer].weight.detach().clone().cpu()
-    sp_msks = featFetcher.sp_mask[layer].weight.detach().clone().cpu()
-    feat_vecs = feat_vecs.reshape((NF, C))
-    sp_msks = sp_msks.reshape((NF, H, W))
+    #%% Visualize weights
+    layer = "conv4_3"
+    for layer in featFetcher.feat_trans:
+        NF = featFetcher.Nfactor
+        C, H, W = featFetcher.feat_tsr_shape[layer]
+        feat_vecs = featFetcher.feat_trans[layer].weight.detach().clone().cpu()
+        sp_msks = featFetcher.sp_mask[layer].weight.detach().clone().cpu()
+        feat_vecs = feat_vecs.reshape((NF, C))
+        sp_msks = sp_msks.reshape((NF, H, W))
 
-    plt.figure(figsize=[21,6])
-    for i in range(NF):
-        plt.subplot(3,NF,i+1)
-        plt.imshow(sp_msks[i,:,:].squeeze().numpy())
-        plt.subplot(3,NF,i+1+NF)
-        plt.plot(feat_vecs[i,:].numpy(),alpha=0.5)
-        plt.subplot(3,NF,i+1+2*NF)
-        plt.plot(sorted(feat_vecs[i,:].numpy()),alpha=0.5)
-    plt.suptitle(layer)
-    plt.show()
-#%%
-tmp = FactorRegr_Machine()
-tmp.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
-tmp.init_model(img_dim=imgpix)  # ANet,
-imgtsr = loadimg_preprocess(imgfullpath_vect[-11:-1])
-pred = tmp.forward(imgtsr.cuda())
-for layer in pred:
-    print(layer, pred[layer].std(), pred[layer].mean())
-#%%
+        plt.figure(figsize=[21,6])
+        for i in range(NF):
+            plt.subplot(3,NF,i+1)
+            plt.imshow(sp_msks[i,:,:].squeeze().numpy())
+            plt.subplot(3,NF,i+1+NF)
+            plt.plot(feat_vecs[i,:].numpy(),alpha=0.5)
+            plt.subplot(3,NF,i+1+2*NF)
+            plt.plot(sorted(feat_vecs[i,:].numpy()),alpha=0.5)
+        plt.suptitle(layer)
+        plt.show()
+    #%%
+    tmp = FactorRegr_Machine()
+    tmp.register_hooks(ANet, ["conv3", "conv4", "conv5"], netname="alexnet")
+    tmp.init_model(img_dim=imgpix)  # ANet,
+    imgtsr = loadimg_preprocess(imgfullpath_vect[-11:-1])
+    pred = tmp.forward(imgtsr.cuda())
+    for layer in pred:
+        print(layer, pred[layer].std(), pred[layer].mean())
+    #%%
 
-featFetcher.featnet = None
-torch.save(featFetcher.state_dict(), join(savedir, "FactModel_weights.pt"))
+    featFetcher.featnet = None
+    torch.save(featFetcher.state_dict(), join(savedir, "FactModel_weights.pt"))
 
 #%%
 # #%%
