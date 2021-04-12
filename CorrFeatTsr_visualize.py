@@ -172,7 +172,7 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, savestr="", fig
     """  """
     z = 0.5*torch.randn([Bsize, 4096]).cuda()
     z.requires_grad_(True)
-    optimizer = SGD([z], lr=lr)
+    optimizer = Adam([z], lr=lr)
     score_traj = []
     pbar = tqdm(range(MAXSTEP))
     for step in pbar:
