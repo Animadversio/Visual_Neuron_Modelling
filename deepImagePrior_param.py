@@ -82,7 +82,7 @@ for iCh in Categ_list[1:]:
 # imsave(join("E:\OneDrive - Washington University in St. Louis\InterpretCorrCoef\CNN_ref\DeepImagePrior", r"vgg16-fc-ch%04d-DIPr-3.PNG" % (iCh)), img_mtg)
 import pickle, urllib
 imageNet_category = pickle.load(urllib.request.urlopen('https://gist.githubusercontent.com/yrevar/6135f1bd8dcf2e0cc683/raw/d133d61a09d7e5a3b36b8c111a8dd5c4b5d560ee/imagenet1000_clsid_to_human.pkl'))
-imageNet_category = pickle.load(open(r"resource/imagenet_class.pkl", "rb"))
+imageNet_category = pickle.load(open(r"resources/imagenet_class.pkl", "rb"))
 #%%
 savedir = r"E:\OneDrive - Washington University in St. Louis\InterpretCorrCoef\CNN_ref\DeepImagePrior"
 net = skip(input_depth, 3, num_channels_down=[16, 32, 64, 128, 128, 128],
