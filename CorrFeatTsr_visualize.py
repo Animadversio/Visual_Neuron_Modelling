@@ -188,7 +188,7 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, savestr="", fig
         CNNnet(ppx)
         score = -scorer.corrfeat_score(layername)
         score.sum().backward()
-        z.grad = z.norm(dim=1) / z.grad.norm(dim=1) * z.grad
+        z.grad = z.norm(dim=1, keepdim=True) / z.grad.norm(dim=1, keepdim=True) * z.grad
         optimizer.step()
         score_traj.append(score.detach().clone().cpu())
         if langevin_eps > 0: # if > 0 then add noise to become Langevin gradient descent jump minimum
