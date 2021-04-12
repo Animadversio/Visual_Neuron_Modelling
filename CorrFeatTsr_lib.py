@@ -18,7 +18,15 @@ from scipy.stats import t
 from easydict import EasyDict
 
 #  New name array to match that of matlab
-layername_dict = {"vgg16": ['conv1_1', 'conv1_1_relu',
+layername_dict = {"alexnet":["conv1", "conv1_relu", "pool1",
+                            "conv2", "conv2_relu", "pool2",
+                            "conv3", "conv3_relu",
+                            "conv4", "conv4_relu",
+                            "conv5", "conv5_relu", "pool3",
+                            "dropout1", "fc6", "fc6_relu",
+                            "dropout2", "fc7", "fc7_relu",
+                            "fc8",],
+                    "vgg16": ['conv1_1', 'conv1_1_relu',
                             'conv1_2', 'conv1_2_relu', 'pool1',
                             'conv2_1', 'conv2_1_relu',
                             'conv2_2', 'conv2_2_relu', 'pool2',

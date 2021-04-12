@@ -10,7 +10,7 @@ Pasupath = r"N:\Stimuli\2019-Manifold\pasupathy-wg-f-4-ori"
 Gaborpath = r"N:\Stimuli\2019-Manifold\gabor"
 
 #%% Load full path to images and psths
-def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)]):
+def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"):
     """
     Demo code
     ```
@@ -40,6 +40,7 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)]):
         imgnm_vect = EStats[Expi-1].imageName[idxvec-1]  # -1 for the index starting from 0 instead of 1
         stimpath = EStats[Expi - 1].meta.stimuli
         stimpath = stimpath.replace(r"\\storage1.ris.wustl.edu\crponce\Active", r"N:")
+        stimpath = stimpath.replace(r"N:", stimdrive+":")
         imgnms_col = glob(stimpath+"\\*") + glob(Pasupath+"\\*") + glob(Gaborpath+"\\*")
         imgfullpath_vect = [[path for path in imgnms_col if imgnm in path][0] for imgnm in imgnm_vect]
         return score_vect, imgfullpath_vect
@@ -61,6 +62,7 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)]):
         imgnm_vect = [MStats[Expi - 1].imageName[idx[0] - 1] for idx in idx_vect]
         stimpath = MStats[Expi - 1].meta.stimuli
         stimpath = stimpath.replace(r"\\storage1.ris.wustl.edu\crponce\Active", r"N:")
+        stimpath = stimpath.replace(r"N:", stimdrive+":")
         imgnms = glob(stimpath + "\\*") + glob(Pasupath + "\\*") + glob(Gaborpath + "\\*")
         imgfullpath_vect = [[path for path in imgnms if imgnm in path][0] for imgnm in imgnm_vect]
         if ExpType == "Manif_avg":

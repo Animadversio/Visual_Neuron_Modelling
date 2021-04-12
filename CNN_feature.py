@@ -61,7 +61,7 @@ class CNNfeature:
                 self.model = Model(inputs=base_model.input, outputs=base_model.get_layer(layer).output)
                 self.preprocess = preprocess_input
 
-        if self.backend == "tf":
+        elif self.backend == "tf":
             if model == "AlexNet":
                 from alexnet.alexnet import MyAlexnet
                 self.net = MyAlexnet()
@@ -80,12 +80,13 @@ class CNNfeature:
             if model == "VGG16":
                 from keras.applications.vgg16 import preprocess_input
                 return preprocess_input(img)
-        if self.backend == "tf":
+        elif self.backend == "tf":
             if model == "AlexNet":
                 from skimage.transform import resize
                 from skimage.color import gray2rgb
                 ppimg = (gray2rgb(resize(img, (227, 227), order=1, anti_aliasing=True))[np.newaxis, :, :, ::-1] - BGRmean) / BGRstd
                 return ppimg
+
     def process(self, ppimgs):
         if self.backend == "keras":
             return self.model.predict(ppimgs)
