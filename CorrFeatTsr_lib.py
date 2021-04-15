@@ -90,7 +90,7 @@ class Corr_Feat_Machine:
             layers = [layers]
 
         for layer in layers:
-            if netname == "vgg16":
+            if netname in ["vgg16", "alexnet"]:
                 layer_idx = layername_dict[netname].index(layer)
                 targmodule = net.features[layer_idx]
             elif netname == "resnet50":
@@ -387,6 +387,27 @@ def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=
     else:
         input_tsr = (input_tsr - RGBmean) / RGBstd
         return input_tsr
+#%%
+#%% Routine for loading images
+# loadbatch = 50
+# ppimgs = []
+# for img_path in tqdm(imgfullpath_vect[-loadbatch:]):
+#     # should be taken care of by the CNN part
+#     curimg = imread(img_path)
+#     x = preprocess(curimg)
+#     ppimgs.append(x.unsqueeze(0))
+# input_tsr = torch.cat(tuple(ppimgs), dim=0)
+# # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow
+# input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
+# input_tsr = F.interpolate(input_tsr, size=[imgpix, imgpix], align_corners=True, mode='bilinear')
+# input_tsr = F.interpolate(input_tsr, size=[224, 224], align_corners=True, mode='bilinear')
+# #%%
+# #%% Note there are some high freq noise signal in the image so may be misleading to the CNN
+# ToPILImage()(torch.clamp(input_tsr[-1]*0.2+0.4, 0, 1)).show()
+# ToPILImage()(input_tsr[-1]).show()
+# ToPILImage()(torch.clamp(median_blur(input_tsr[-2:-1], (3, 3))[0]*0.2+0.4, 0, 1)).show()
+# ToPILImage()(median_blur(input_tsr[-2:-1], (3, 3))[0]).show()
+# We want to remove the checkerboard noise!
 #%%
 #
 # figdir = join("S:\corrFeatTsr", "VGGsummary")

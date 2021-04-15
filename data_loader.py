@@ -70,3 +70,11 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             return score_vect, imgfullpath_vect
         elif ExpType == "Manif_sgtr":
             return scorecol, imgfullpath_vect
+# ui = EStats[Expi - 1].evol.unit_in_pref_chan # unit id in the pref chan
+# psth = MStats[Expi-1].manif.psth.reshape(-1)
+# if psth[0].ndim == 3:
+#     nunit = psth[0].shape[0]
+# else:
+#     nunit = 1
+# psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
+# scorecol = [np.mean(P[ui-1, 50:200, :],axis=0).astype(np.float) for P in psthlist]
