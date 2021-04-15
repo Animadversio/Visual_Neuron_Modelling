@@ -200,11 +200,11 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, savestr="", fig
     final_score = -score.detach().clone().cpu()
     del score
     idx = torch.argsort(final_score, descending=True)
-    score_traj = torch.stack(tuple(score_traj))
+    score_traj = -torch.stack(tuple(score_traj))[:, idx]
     torch.cuda.empty_cache()
-    finimgs = x.detach().clone().cpu()
+    finimgs = x.detach().clone().cpu()[idx, :, :, :]
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
-    mtg = ToPILImage()(make_grid(finimgs[idx,:,:,:]))
+    mtg = ToPILImage()(make_grid(finimgs))
     mtg.show()
     mtg.save(join(figdir, "%s_%s.png"%(savestr, layername)))
     np.savez(join(figdir, "%s_%s.npz"%(savestr, layername)), z=z.detach().cpu().numpy(), score_traj=score_traj.numpy())

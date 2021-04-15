@@ -1,4 +1,8 @@
 #%% is_lab
+#%%
+%load_ext autoreload
+%autoreload 2
+#%%
 import numpy as np
 from scipy.io import loadmat
 from os.path import join
@@ -11,7 +15,28 @@ from GAN_utils import upconvGAN
 import torch
 from torchvision import models
 from data_loader import mat_path, load_score_mat, loadmat
+from torchvision.utils import make_grid
+from torchvision.transforms import ToPILImage
 ckpt_dir = r"E:\Cluster_Backup\torch"
+# !subst N: E:\Network_Data_Sync
+# !subst S: E:\Network_Data_Sync
+# !subst O: "E:\OneDrive - Washington University in St. Louis"
+
+#%%
+import matplotlib
+from torchvision.utils import make_grid
+from torchvision.transforms import ToPILImage
+def align_clim(Mcol: matplotlib.image.AxesImage):
+    cmin = np.inf
+    cmax = -np.inf
+    for M in Mcol:
+        MIN, MAX = M.get_clim()
+        cmin = min(MIN, cmin)
+        cmax = max(MAX, cmax)
+    for M in Mcol:
+        M.set_clim((cmin, cmax))
+    return cmin, cmax
+
 
 def show_img(img):
     plt.imshow(img)
@@ -102,67 +127,178 @@ def load_featnet(netname):
     return featnet, net
 
 
-def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None):
+def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
+        preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, langevin_eps=0,
+        imshow=True, verbose=False):
     """Feature vector over the whole map"""
     if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
+    finimgs_col, mtg_col, score_traj_col = [], [], []
     for ci in range(ccfactor.shape[1]):
         fact_W = torch.from_numpy(ccfactor[:, ci]).reshape([1,-1,1,1])
         scorer.register_weights({layer: fact_W})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=0.025, MAXSTEP=100,
-                                  imshow=True, verbose=False, adam=True)
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=lr, MAXSTEP=MAXSTEP, imshow=imshow, verbose=verbose, adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps)
+        finimgs_col.append(finimgs)
+        mtg_col.append(mtg)
+        score_traj_col.append(score_traj)
     scorer.clear_hook()
-    return finimgs, mtg, score_traj
+    return finimgs_col, mtg_col, score_traj_col
 
 
-def vis_featvec_map(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2):
+def vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+              preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, langevin_eps=0,
+              imshow=True, verbose=False):
     """Feature vector at the centor of the map as spatial mask."""
+    if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
+    finimgs_col, mtg_col, score_traj_col = [], [], []
     for ci in range(ccfactor.shape[1]):
         H, W, _ = Hmaps.shape
         sp_mask = np.pad(np.ones([2, 2, 1]), ((H//2-1+bdr, H-H//2-1+bdr), (W//2-1+bdr, W-W//2-1+bdr),(0,0)),
                          mode="constant", constant_values=0)
         fact_Chtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci+1], sp_mask))
         scorer.register_weights({layer: fact_Chtsr})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=0.05, MAXSTEP=100,
-                              imshow=True, verbose=False)
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=lr, MAXSTEP=MAXSTEP, imshow=imshow, verbose=verbose, adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps)
+        finimgs_col.append(finimgs)
+        mtg_col.append(mtg)
+        score_traj_col.append(score_traj)
     scorer.clear_hook()
-    return finimgs, mtg, score_traj
+    return finimgs_col, mtg_col, score_traj_col
 
 
-def vis_featvec_maps(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2):
+def vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+             preprocess=preprocess, lr=0.1, MAXSTEP=100, use_adam=True, Bsize=4, langevin_eps=0,
+             imshow=True, verbose=False):
+    if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
+    finimgs_col, mtg_col, score_traj_col = [], [], []
     for ci in range(ccfactor.shape[1]):
-        fact_W = torch.from_numpy(ccfactor[:, ci]).reshape([-1,1,1])
-        scorer.register_weights({layer: fact_W.unsqueeze(0)})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=0.025, MAXSTEP=100,
-                                  imshow=True, verbose=False, adam=True)
+        padded_mask = np.pad(Hmaps[:, :, ci:ci + 1], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
+        fact_Wtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci + 1], padded_mask))
+        show_img(padded_mask[:, :, 0])
+        scorer.register_weights({layer: fact_Wtsr})
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=lr, MAXSTEP=MAXSTEP, imshow=imshow, verbose=verbose, adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps)
+        finimgs_col.append(finimgs)
+        mtg_col.append(mtg)
+        score_traj_col.append(score_traj)
     scorer.clear_hook()
-    return finimgs, mtg, score_traj
+    return finimgs_col, mtg_col, score_traj_col
+
 
 def vis_featvec_map(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2):
     padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
     DR_Wtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask))
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
-    scorer.register_weights({layer: DR_Wtsr}) #
+    scorer.register_weights({layer: DR_Wtsr})
     finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=0.05,
           MAXSTEP=150, imshow=True, verbose=False, langevin_eps=0.03, Bsize=5)
     scorer.clear_hook()
     return finimgs, mtg, score_traj
+
+def vis_featmap_corr(scorer, featnet, finimgs, targvect, layer, mapstr="cov", imgscores=[]):
+    featnet(finimgs.cuda())
+    act_feattsr = scorer.feat_tsr[layer].cpu()
+    target_vec = torch.from_numpy(targvect).reshape([1, -1, 1, 1]).float()
+
+    cov_map = (act_feattsr * target_vec).mean(dim=1, keepdim=False)
+    z_feattsr = (act_feattsr - act_feattsr.mean(dim=1, keepdim=True)) / act_feattsr.std(dim=1, keepdim=True)
+    z_featvec = (target_vec - target_vec.mean(dim=1, keepdim=True)) / target_vec.std(dim=1, keepdim=True)
+    corr_map = (z_feattsr * z_featvec).mean(dim=1)
+
+    map2show = cov_map if mapstr == "cov" else corr_map
+    NS = map2show.shape[0]
+    Mcol = []
+    [figh, axs] = plt.subplots(2, NS, figsize=[NS * 2.5, 5.3])
+    for ci in range(NS):
+        plt.sca(axs[0, ci])  # show the map correlation
+        M = plt.imshow((map2show[ci, :, :] / map2show.max()).numpy())
+        plt.axis("off")
+        plt.title("%.2e" % imgscores[ci])
+        plt.sca(axs[1, ci])
+        plt.imshow(ToPILImage()(finimgs[ci, :, :, :]))
+        plt.axis("off")
+        Mcol.append(M)
+    align_clim(Mcol)
+    plt.show()
+    return cov_map, corr_map
 #%%
-Animal = "Beto"; Expi = 11
 exp_suffix = "_nobdr_alex"
 netname = "alexnet"
-corrDict = np.load(join("S:\corrFeatTsr","%s_Exp%d_Evol%s_corrTsr.npz"%(Animal,Expi,exp_suffix)), allow_pickle=True)#
-cctsr_dict = corrDict.get("cctsr").item()
-Ttsr_dict = corrDict.get("Ttsr").item()
-
-ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
-show_img(ReprStats[Expi-1].Manif.BestImg)
-
 G = upconvGAN("fc6").cuda()
 G.requires_grad_(False)
+featnet, net = load_featnet(netname)
+#%%
+Animal = "Beto"; Expi = 11
+corrDict = np.load(join("S:\corrFeatTsr", "%s_Exp%d_Evol%s_corrTsr.npz" % (Animal, Expi, exp_suffix)), allow_pickle=True)#
+cctsr_dict = corrDict.get("cctsr").item()
+Ttsr_dict = corrDict.get("Ttsr").item()
+ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
+show_img(ReprStats[Expi-1].Manif.BestImg)
+#%%
+layer = "conv3"
+Ttsr = Ttsr_dict[layer]
+cctsr = cctsr_dict[layer]
+bdr = 1; NF = 5
+Ttsr_pp = rectify_tsr(Ttsr, "abs")  # "mode="thresh", thr=(-5,5))
+Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF)
+
+#%%
+finimgs_col, mtg_col, score_traj_col = vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=featnet, Bsize=6,)
+#%%
+finimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=featnet, bdr=1, Bsize=6)
+#%%
+finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=1, Bsize=6)
+#%%
+scorer = CorrFeatScore()
+scorer.register_hooks(net, layer, netname=netname)
+finimgs_col, mtg_col, score_traj_col = [], [], []
+for ci in range(ccfactor.shape[1]):
+    H, W, _ = Hmaps.shape
+    sp_mask = np.pad(np.ones([2, 2, 1]), ((H//2-1+bdr, H-H//2-1+bdr), (W//2-1+bdr, W-W//2-1+bdr),(0,0)), mode="constant", constant_values=0)
+    fact_Chtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci+1], sp_mask))
+    scorer.register_weights({layer: fact_Chtsr})
+    finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, lr=0.05, MAXSTEP=100, adam=True, Bsize=6, langevin_eps=0,
+              imshow=False, verbose=False)
+    vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, mapstr="corr", imgscores=score_traj[-1, :])
+    finimgs_col.append(finimgs)
+    mtg_col.append(mtg)
+    score_traj_col.append(score_traj)
+# scorer.clear_hook()
+#%%
+featnet(finimgs.cuda())
+#%%
+
+ci=4
+mapstr = "cov"
+
+act_feattsr = scorer.feat_tsr[layer].cpu()
+target_vec = torch.from_numpy(ccfactor[:, ci:ci+1]).reshape([1,-1,1,1]).float()
+cov_map = (act_feattsr * target_vec).mean(dim=1, keepdim=False)
+z_feattsr = (act_feattsr - act_feattsr.mean(dim=1, keepdim=True)) / act_feattsr.std(dim=1, keepdim=True)
+z_featvec = (target_vec - target_vec.mean(dim=1, keepdim=True)) / target_vec.std(dim=1, keepdim=True)
+corr_map = (z_feattsr * z_featvec).mean(dim=1)
+
+map2show = cov_map if mapstr == "cov" else corr_map
+NS = map2show.shape[0]
+#%%
+Mcol = []
+[figh, axs] = plt.subplots(2, NS, figsize=[NS*2.5, 5.3])
+for ci in range(NS):
+    plt.sca(axs[0, ci])  # show the map correlation
+    M = plt.imshow((map2show[ci, :, :] / map2show.max()).numpy())
+    plt.axis("off")
+    plt.title("%.2e"%score_traj[-1,ci].item())
+    plt.sca(axs[1, ci])
+    plt.imshow(ToPILImage()(finimgs[ci, :,:,:]))
+    plt.axis("off")
+    Mcol.append(M)
+align_clim(Mcol)
+plt.show()
+# show the resulting feature map that match the current feature descriptor
+#%%
+
+
