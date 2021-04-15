@@ -93,8 +93,10 @@ class Corr_Feat_Machine:
             if netname in ["vgg16", "alexnet"]:
                 layer_idx = layername_dict[netname].index(layer)
                 targmodule = net.features[layer_idx]
-            elif netname == "resnet50":
+            elif "resnet50" in netname:
                 targmodule = net.__getattr__(layer)
+            else:
+                raise NotImplementedError
             actH = targmodule.register_forward_hook(self.hook_forger(layer))
             self.hooks.append(actH)
             self.layers.append(layer)

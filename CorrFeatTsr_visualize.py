@@ -56,7 +56,8 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                                  'denseblock3', 'transition3',
                                  'denseblock4',
                                  'bn2',
-                                 'fc1']}
+                                 'fc1'],
+                "resnet50": ["layer1", "layer2", "layer3", "layer4"]}
 
 class CorrFeatScore:
     def __init__(self):
@@ -84,9 +85,12 @@ class CorrFeatScore:
         for layer in layers:
             if netname in ["vgg16","alexnet"]:
                 layer_idx = layername_dict[netname].index(layer)
-                actH = net.features[layer_idx].register_forward_hook(self.hook_forger(layer))
+                targmodule = net.features[layer_idx]
+            elif "resnet50" in netname: # in ["resnet50", "resnet50_linf"]:
+                targmodule = net.__getattr__(layer)
             else:
                 raise NotImplementedError
+            actH = targmodule.register_forward_hook(self.hook_forger(layer))
             self.hooks.append(actH)
             self.layers.append(layer)
 
@@ -109,6 +113,15 @@ class CorrFeatScore:
             return self.scores
         else:
             return self.scores[layers[0]]
+
+    def featvec_corrmap(self, layer:str, featvec):
+        act_feattsr = self.feat_tsr[layer].cpu()
+        target_vec = torch.from_numpy(featvec).reshape([1, -1, 1, 1]).float()
+        cov_map = (act_feattsr * target_vec).mean(dim=1, keepdim=False) # torch.tensor (B, H, W)
+        z_feattsr = (act_feattsr - act_feattsr.mean(dim=1, keepdim=True)) / act_feattsr.std(dim=1, keepdim=True)
+        z_featvec = (target_vec - target_vec.mean(dim=1, keepdim=True)) / target_vec.std(dim=1, keepdim=True)
+        corr_map = (z_feattsr * z_featvec).mean(dim=1) # torch.tensor (B, H, W)
+        return cov_map, corr_map
 
     def load_from_npy(self, savedict, net, netname, thresh=0, layers=[]):
         # imgN = savedict["imgN"]
@@ -144,13 +157,24 @@ from GAN_utils import upconvGAN
 RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
 RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
 
-def corr_visualize(scorer, CNNnet, preprocess, layername, lr=0.01, imgfullpix=224, MAXSTEP=50, Bsize=4):
+def preprocess(img: torch.tensor):
+    """ clamp range to 0, 1; Blur the image; Centralize the tensor to go into CNN."""
+    img = torch.clamp(img,0,1)
+    img = gaussian_blur2d(img, (5,5), sigma=(3, 3))
+    img = (img - RGBmean.to(img.device)) / RGBstd.to(img.device)
+    return img
+
+
+def corr_visualize(scorer, CNNnet, preprocess, layername,
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
+    savestr="", figdir="", imshow=False, verbose=True, ):
     """  """
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()
     x.requires_grad_(True)
-    optimizer = SGD([x], lr=lr)
+    optimizer = Adam([x], lr=lr) if use_adam else SGD([x], lr=lr)
     score_traj = []
-    for step in range(MAXSTEP):
+    pbar = tqdm(range(MAXSTEP))
+    for step in pbar:
         ppx = preprocess(x)
         optimizer.zero_grad()
         CNNnet(ppx)
@@ -159,68 +183,74 @@ def corr_visualize(scorer, CNNnet, preprocess, layername, lr=0.01, imgfullpix=22
         x.grad = x.norm() / x.grad.norm() * x.grad
         optimizer.step()
         score_traj.append(score.detach().clone().cpu())
-        if step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in -score)))
-
-    score_traj = torch.stack(tuple(score_traj))
-    torch.cuda.empty_cache()
-    mtg = ToPILImage()(make_grid(x).cpu())
-    mtg.show()
-    # ToPILImage()(torch.clamp(x[0], 0, 1).cpu()).show()
-    return x.detach().clone().cpu(), mtg, score_traj
-
-
-def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, savestr="", figdir="", lr=0.01, imgfullpix=224, MAXSTEP=50, Bsize=4, imshow=False, verbose=True, adam=True, langevin_eps=0):
-    """  """
-    z = 0.5*torch.randn([Bsize, 4096]).cuda()
-    z.requires_grad_(True)
-    if adam:
-        optimizer = Adam([z], lr=lr)
-    else:
-        optimizer = SGD([z], lr=lr)
-    score_traj = []
-    pbar = tqdm(range(MAXSTEP))
-    for step in pbar:
-        x = G.visualize(z, scale=1.0)
-        ppx = F.interpolate(x, [imgfullpix,imgfullpix], mode="bilinear", align_corners=True)
-        ppx = preprocess(ppx)
-        optimizer.zero_grad()
-        CNNnet(ppx)
-        score = -scorer.corrfeat_score(layername)
-        score.sum().backward()
-        z.grad = z.norm(dim=1, keepdim=True) / z.grad.norm(dim=1, keepdim=True) * z.grad
-        optimizer.step()
-        score_traj.append(score.detach().clone().cpu())
-        if langevin_eps > 0: # if > 0 then add noise to become Langevin gradient descent jump minimum
-            z.data.add_(torch.randn(z.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in -score)))
         pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
-    # ToPILImage()(torch.clamp(x[0],0,1).cpu()).show()
+
     final_score = -score.detach().clone().cpu()
     del score
+    torch.cuda.empty_cache()
     idx = torch.argsort(final_score, descending=True)
     score_traj = -torch.stack(tuple(score_traj))[:, idx]
-    torch.cuda.empty_cache()
-    finimgs = x.detach().clone().cpu()[idx, :, :, :]
+    finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
     mtg = ToPILImage()(make_grid(finimgs))
     mtg.show()
-    mtg.save(join(figdir, "%s_%s.png"%(savestr, layername)))
-    np.savez(join(figdir, "%s_%s.npz"%(savestr, layername)), z=z.detach().cpu().numpy(), score_traj=score_traj.numpy())
+    mtg.save(join(figdir, "%s_pix_%s.png"%(savestr, layername)))
+    np.savez(join(figdir, "%s_pix_%s.npz"%(savestr, layername)), score_traj=score_traj.numpy())
     if imshow:
-        plt.figure(figsize=[Bsize*2,2.5])
+        plt.figure(figsize=[Bsize*2, 2.3])
         plt.imshow(mtg)
         plt.axis("off")
         plt.show()
     return finimgs, mtg, score_traj
 
 
-def preprocess(img):
-    img = torch.clamp(img,0,1)
-    img = gaussian_blur2d(img, (5,5), sigma=(3, 3))
-    img = (img - RGBmean.to(img.device)) / RGBstd.to(img.device)
-    return img
+def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
+    savestr="", figdir="", imshow=False, verbose=True, ):
+    """ Visualize the features carried by the scorer.  """
+    z = 0.5*torch.randn([Bsize, 4096]).cuda()
+    z.requires_grad_(True)
+    optimizer = Adam([z], lr=lr) if use_adam else SGD([z], lr=lr)
+    score_traj = []
+    pbar = tqdm(range(MAXSTEP))
+    for step in pbar:
+        x = G.visualize(z, scale=1.0)
+        ppx = preprocess(x)
+        ppx = F.interpolate(ppx, [imgfullpix, imgfullpix], mode="bilinear", align_corners=True)
+        optimizer.zero_grad()
+        CNNnet(ppx)
+        score = -scorer.corrfeat_score(layername)
+        score.sum().backward()
+        z.grad = z.norm(dim=1, keepdim=True) / z.grad.norm(dim=1, keepdim=True) * z.grad  # this is a gradient normalizing step 
+        optimizer.step()
+        score_traj.append(score.detach().clone().cpu())
+        if langevin_eps > 0: 
+            # if > 0 then add noise to become Langevin gradient descent jump minimum
+            z.data.add_(torch.randn(z.shape, device="cuda") * langevin_eps)
+        if verbose and step % 10 == 0:
+            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+
+    final_score = -score.detach().clone().cpu()
+    del score
+    torch.cuda.empty_cache()
+    idx = torch.argsort(final_score, descending=True)
+    score_traj = -torch.stack(tuple(score_traj))[:, idx]
+    finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
+    print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
+    mtg = ToPILImage()(make_grid(finimgs))
+    mtg.show()
+    mtg.save(join(figdir, "%s_G_%s.png"%(savestr, layername)))
+    np.savez(join(figdir, "%s_G_%s.npz"%(savestr, layername)), z=z.detach().cpu().numpy(), score_traj=score_traj.numpy())
+    if imshow:
+        plt.figure(figsize=[Bsize*2, 2.3])
+        plt.imshow(mtg)
+        plt.axis("off")
+        plt.show()
+    return finimgs, mtg, score_traj
+
 #%%
 if __name__ == "__main__":
     # Prepare the networks
