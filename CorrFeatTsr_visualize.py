@@ -6,6 +6,7 @@
 #%%
 from scipy.io import loadmat
 from skimage.io import imread, imread_collection
+import os
 from os.path import join
 from glob import glob
 import numpy as np
@@ -19,7 +20,6 @@ from torchvision.transforms import ToPILImage
 from skimage.transform import resize
 from kornia.filters import median_blur, gaussian_blur2d
 
-#%%
 from collections import defaultdict
 from scipy.stats import t
 from easydict import EasyDict
@@ -156,6 +156,11 @@ from torchvision.utils import make_grid
 from GAN_utils import upconvGAN
 RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
 RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
+def save_imgtsr(finimgs, figdir:str ="", savestr:str =""):
+    B = finimgs.shape[0]
+    for imgi in range(B):
+        ToPILImage()(finimgs[imgi,:,:,:]).save(join(figdir, "%s_%02d.png"%(savestr, imgi)))
+
 
 def preprocess(img: torch.tensor):
     """ clamp range to 0, 1; Blur the image; Centralize the tensor to go into CNN."""
@@ -208,7 +213,7 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
 
 def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, ):
+    savestr="", figdir="", imshow=False, verbose=True, saveimg=False):
     """ Visualize the features carried by the scorer.  """
     z = 0.5*torch.randn([Bsize, 4096]).cuda()
     z.requires_grad_(True)
@@ -249,6 +254,9 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
         plt.imshow(mtg)
         plt.axis("off")
         plt.show()
+    if saveimg:
+        os.makedirs(join(figdir, "img"), exist_ok=True)
+        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
     return finimgs, mtg, score_traj
 
 #%%
