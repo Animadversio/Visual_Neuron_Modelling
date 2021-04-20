@@ -67,6 +67,7 @@ class CorrFeatScore:
         self.hooks = []
         self.layers = []
         self.scores = {}
+        self.netname = None
 
     def hook_forger(self, layer, grad=True):
         # this function is important, or layer will be redefined in the same scope!
@@ -93,6 +94,7 @@ class CorrFeatScore:
             actH = targmodule.register_forward_hook(self.hook_forger(layer))
             self.hooks.append(actH)
             self.layers.append(layer)
+        self.netname = netname
 
     def register_weights(self, weight_dict):
         for layer, weight in weight_dict.items():

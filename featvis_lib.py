@@ -250,6 +250,12 @@ def vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname="alexnet", featne
     return finimgs, mtg, score_traj
 
 
+def pad_factor_prod(Hmaps, ccfactor, bdr=0):
+    padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
+    DR_Wtsr = np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask)
+    return DR_Wtsr
+
+
 def vis_featmap_corr(scorer: CorrFeatScore, featnet: nn.Module, finimgs: torch.tensor, targvect: np.ndarray, layer: str,
                      maptype="cov", imgscores=[], figdir="", savestr=""):
     """Given a feature vec, the feature map as projecting the feat tensor onto this vector."""
@@ -297,7 +303,7 @@ def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preproces
     :return:
         score_all: tensor of returned scores.
 
-    :demo:
+    :Example:
         scorer = CorrFeatScore()
         scorer.register_hooks(net, layer, netname=netname)
         scorer.register_weights({layer: DR_Wtsr})
@@ -312,7 +318,7 @@ def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preproces
     score_all = []
     while csr < imgN:
         cend = min(csr + batchsize, imgN)
-        input_tsr = imgloader(imgfps[csr:cend], borderblur=True)  # imgpix=120, fullimgsz=224
+        input_tsr = imgloader(imgfps[csr:cend])  # imgpix=120, fullimgsz=224, borderblur=True
         with torch.no_grad():
             part_tsr = featNet(input_tsr.cuda()).cpu()
             score = scorer.corrfeat_score(layername)
@@ -329,11 +335,11 @@ def softplus(x, a, b, thr):
     return a * np.logaddexp(0, x - thr) + b
 
 
-def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm=""):
+def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True, savedir="", savenm=""):
     """Given a linearly predicted score and target score, fit a nonlinearity to minimize error.
     TODO: Maybe need cross fit and prediction.
-    :param pred_score_np: predicted scores
-    :param score_vect: target scores
+    :param pred_score_np: predicted scores to be transformed. np.array
+    :param score_vect: target scores. np.array
     :Example
         nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect)
     """
@@ -342,7 +348,8 @@ def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm="")
     pred_score_np_norm = pred_score_np * scaling
     popt, pcov = curve_fit(softplus, pred_score_np_norm, score_vect, \
           p0=[1, min(score_vect), np.median(pred_score_np_norm)], \
-          bounds=([0, 0, min(pred_score_np_norm)-10], [np.inf, max(score_vect), max(pred_score_np_norm)]))
+          bounds=([0, min(score_vect) - 10, min(pred_score_np_norm)-10], 
+                  [np.inf, max(score_vect), max(pred_score_np_norm)]))
     print("NL parameters: amp %.1e baseline %.1e thresh %.1e" % tuple(popt))
     nlpred_score = softplus(pred_score_np_norm, *popt)
     nlfunc = lambda predicted: softplus(predicted * scaling, *popt)
@@ -354,14 +361,14 @@ def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm="")
     if show:
         figh = plt.figure(figsize=[8, 4.5])
         plt.subplot(121)
-        plt.scatter(pred_score_np, nlpred_score, alpha=0.6, label="fitting")
-        plt.scatter(pred_score_np, score_vect, alpha=0.6, label="data")
+        plt.scatter(pred_score_np, nlpred_score, alpha=0.5, label="fitting")
+        plt.scatter(pred_score_np, score_vect, alpha=0.5, label="data")
         plt.xlabel("Factor Prediction")
         plt.ylabel("Original Scores")
         plt.title("Before Fitting corr %.3f"%(cc_bef))
         plt.legend()
         plt.subplot(122)
-        plt.scatter(nlpred_score, score_vect)
+        plt.scatter(nlpred_score, score_vect, alpha=0.5)
         plt.axis("image")
         plt.xlabel("Factor Prediction + nl")
         plt.ylabel("Original Scores")
@@ -407,7 +414,9 @@ if __name__ == "__main__":
                                  featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
     finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname,
                                  featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
-    #%%
+    
+    
+    #%% Development zone for feature map visualization 
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
     finimgs_col, mtg_col, score_traj_col = [], [], []
@@ -425,8 +434,7 @@ if __name__ == "__main__":
     # scorer.clear_hook()
     #%%
     featnet(finimgs.cuda())
-    #%%
-    
+    #%% 
     ci=4
     maptype = "cov"
     
