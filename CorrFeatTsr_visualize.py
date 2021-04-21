@@ -182,7 +182,7 @@ def preprocess(img: torch.tensor):
 
 def corr_visualize(scorer, CNNnet, preprocess, layername,
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, score_mode="dot"):
+    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
     """  """
     scorer.mode = score_mode
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()
@@ -222,6 +222,9 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
         plt.imshow(mtg)
         plt.axis("off")
         plt.show()
+    if saveimg:
+        os.makedirs(join(figdir, "img"), exist_ok=True)
+        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
     return finimgs, mtg, score_traj
 
 
