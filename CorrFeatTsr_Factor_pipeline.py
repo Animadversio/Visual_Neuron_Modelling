@@ -10,13 +10,13 @@ from data_loader import mat_path, loadmat, load_score_mat
 from GAN_utils import upconvGAN
 figroot = "E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis"
 #%%
-exp_suffix = "_nobdr"#"_nobdr"
+exp_suffix = ""#"_nobdr"
 netname = "vgg16"
 G = upconvGAN("fc6").cuda()
 G.requires_grad_(False)
 featnet, net = load_featnet(netname)
 # %%
-Animal = "Alfa"; Expi = 1
+Animal = "Alfa"; Expi = 3
 corrDict = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_Evol%s_corrTsr.npz" % (Animal, Expi, exp_suffix)),
                    allow_pickle=True)  #
 cctsr_dict = corrDict.get("cctsr").item()
@@ -47,15 +47,20 @@ Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, covtsr, bdr=bdr, Nfa
                                                    savestr="%s-%s" % (netname, layer))
 # Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF, figdir=figdir,
 #                                                    savestr="%s-%s" % (netname, layer))
-finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="")
+finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="corr",
+                                       score_mode="corr")
+#%%
 finimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, Bsize=5,
-                                      bdr=bdr, figdir=figdir, savestr="", MAXSTEP=100, langevin_eps=0.01)
+                  bdr=bdr, figdir=figdir, savestr="corr", MAXSTEP=100, langevin_eps=0.01, score_mode="corr")
+#%
 finimgs_col, mtg_col, score_traj_col = vis_featvec(ccfactor, net, G, layer, netname=netname, featnet=featnet,
-                                   Bsize=5, figdir=figdir, savestr="", imshow=False)
+                 Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
+#%
 finimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname=netname,
-                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
-finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname,
-                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
+                 featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
+#%%
+finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname, pntsize=4,
+                 featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
 #%%
 padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
 DR_Wtsr = np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask) # torch.from_numpy()

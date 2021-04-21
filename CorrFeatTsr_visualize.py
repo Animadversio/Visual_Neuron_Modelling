@@ -115,7 +115,7 @@ class CorrFeatScore:
                 w_std = self.weight_tsr[layer].std()
                 act_mean = acttsr.mean(dim=(1, 2, 3), keepdim=True)
                 act_std = acttsr.std(dim=(1, 2, 3), keepdim=True)
-                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).sum(dim=[1, 2, 3])
+                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=[1, 2, 3])
             else:
                 raise NotImplementedError("Check `mode` of `scorer` ")
             self.scores[layer] = score

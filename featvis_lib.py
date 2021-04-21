@@ -167,7 +167,7 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
 
 
 def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2,
-              preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, langevin_eps=0,
+              preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, langevin_eps=0, pntsize=2,
               imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
     """ Feature vector at the centor of the map as spatial mask. """
     if featnet is None: featnet = net.features
@@ -176,7 +176,8 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
     finimgs_col, mtg_col, score_traj_col = [], [], []
     for ci in range(ccfactor.shape[1]):
         H, W, _ = Hmaps.shape
-        sp_mask = np.pad(np.ones([2, 2, 1]), ((H//2-1+bdr, H-H//2-1+bdr), (W//2-1+bdr, W-W//2-1+bdr),(0,0)),
+        sp_mask = np.pad(np.ones([pntsize, pntsize, 1]), ((H//2-pntsize//2+bdr, H-H//2-pntsize+pntsize//2+bdr),
+                                                          (W//2-pntsize//2+bdr, W-W//2-pntsize+pntsize//2+bdr),(0,0)),
                          mode="constant", constant_values=0)
         fact_Chtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci+1], sp_mask))
         scorer.register_weights({layer: fact_Chtsr})
