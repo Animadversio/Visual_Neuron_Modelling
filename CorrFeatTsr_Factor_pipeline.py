@@ -21,6 +21,8 @@ corrDict = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_Evol%s_corrTsr.npz" % (Anim
                    allow_pickle=True)  #
 cctsr_dict = corrDict.get("cctsr").item()
 Ttsr_dict = corrDict.get("Ttsr").item()
+stdtsr_dict = corrDict.get("featStd").item()
+covtsr_dict = {layer: cctsr_dict[layer] * stdtsr_dict[layer] for layer in cctsr_dict}
 
 MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
 EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
@@ -36,21 +38,29 @@ os.makedirs(figdir, exist_ok=True)
 layer = "conv4_3"
 Ttsr = Ttsr_dict[layer]
 cctsr = cctsr_dict[layer]
+covtsr = covtsr_dict[layer]
 Ttsr = np.nan_to_num(Ttsr)
 cctsr = np.nan_to_num(cctsr)
 bdr = 1; NF = 3
-Ttsr_pp = rectify_tsr(Ttsr, "abs")# mode="thresh", thr=(-5, 5))  #  #
-Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF, figdir=figdir,
+Ttsr_pp = rectify_tsr(Ttsr, "abs")  # mode="thresh", thr=(-5, 5))  #  #
+Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, covtsr, bdr=bdr, Nfactor=NF, figdir=figdir,
                                                    savestr="%s-%s" % (netname, layer))
-finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="")
+# Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF, figdir=figdir,
+#                                                    savestr="%s-%s" % (netname, layer))
+finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="corr",
+                                       score_mode="corr")
+#%%
 finimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, Bsize=5,
-                                      bdr=bdr, figdir=figdir, savestr="", MAXSTEP=100, langevin_eps=0.01)
+                  bdr=bdr, figdir=figdir, savestr="corr", MAXSTEP=100, langevin_eps=0.01, score_mode="corr")
+#%
 finimgs_col, mtg_col, score_traj_col = vis_featvec(ccfactor, net, G, layer, netname=netname, featnet=featnet,
-                                   Bsize=5, figdir=figdir, savestr="", imshow=False)
+                 Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
+#%
 finimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname=netname,
-                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
-finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname,
-                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
+                 featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
+#%%
+finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname, pntsize=4,
+                 featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="corr", imshow=False, score_mode="corr")
 #%%
 padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
 DR_Wtsr = np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask) # torch.from_numpy()
@@ -62,3 +72,35 @@ with torch.no_grad():
 scorer.clear_hook()
 nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect, savedir=figdir,
                                                             savenm="manif_pred")
+#%%
+# %%
+layer = "conv4_3"
+Ttsr = Ttsr_dict[layer]
+cctsr = cctsr_dict[layer]
+covtsr = covtsr_dict[layer]
+Ttsr = np.nan_to_num(Ttsr)
+cctsr = np.nan_to_num(cctsr)
+bdr = 1; NF = 3
+Ttsr_pp = rectify_tsr(Ttsr, "abs")  # mode="thresh", thr=(-5, 5))  #  #
+Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, covtsr, bdr=bdr, Nfactor=NF, figdir=figdir,
+                                                   savestr="%s-%scov" % (netname, layer))
+finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="cov")
+finimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, Bsize=5,
+                                      bdr=bdr, figdir=figdir, savestr="cov", MAXSTEP=100, langevin_eps=0.01)
+finimgs_col, mtg_col, score_traj_col = vis_featvec(ccfactor, net, G, layer, netname=netname, featnet=featnet,
+                                   Bsize=5, figdir=figdir, savestr="cov", imshow=False)
+finimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname=netname,
+                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="cov", imshow=False)
+finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname,
+                                     featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="cov", imshow=False)
+#%%
+padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
+DR_Wtsr = np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask) # torch.from_numpy()
+scorer = CorrFeatScore()
+scorer.register_hooks(net, layer, netname=netname)
+scorer.register_weights({layer: DR_Wtsr})
+with torch.no_grad():
+    pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=loadimg_preprocess, batchsize=40,)
+scorer.clear_hook()
+nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect, savedir=figdir,
+                                                            savenm="manif_pred_cov")

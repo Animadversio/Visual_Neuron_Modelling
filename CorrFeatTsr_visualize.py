@@ -68,6 +68,7 @@ class CorrFeatScore:
         self.layers = []
         self.scores = {}
         self.netname = None
+        self.mode = "dot"  # "corr"
 
     def hook_forger(self, layer, grad=True):
         # this function is important, or layer will be redefined in the same scope!
@@ -108,8 +109,17 @@ class CorrFeatScore:
             layers = [layers]
         for layer in layers:
             acttsr = self.feat_tsr[layer]
-            score = (self.weight_tsr[layer] * acttsr).sum(dim=[1, 2, 3])
-            if Nnorm: score = score / self.weight_N[layer]
+            if self.mode is "dot":
+                score = (self.weight_tsr[layer] * acttsr).sum(dim=[1, 2, 3])
+                if Nnorm: score = score / self.weight_N[layer]
+            elif self.mode is "corr":
+                w_mean = self.weight_tsr[layer].mean()
+                w_std = self.weight_tsr[layer].std()
+                act_mean = acttsr.mean(dim=(1, 2, 3), keepdim=True)
+                act_std = acttsr.std(dim=(1, 2, 3), keepdim=True)
+                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=[1, 2, 3])
+            else:
+                raise NotImplementedError("Check `mode` of `scorer` ")
             self.scores[layer] = score
         if len(layers) > 1:
             return self.scores
@@ -174,8 +184,9 @@ def preprocess(img: torch.tensor):
 
 def corr_visualize(scorer, CNNnet, preprocess, layername,
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, ):
+    savestr="", figdir="", imshow=False, verbose=True, score_mode="dot"):
     """  """
+    scorer.mode = score_mode
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()
     x.requires_grad_(True)
     optimizer = Adam([x], lr=lr) if use_adam else SGD([x], lr=lr)
@@ -190,6 +201,9 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
         x.grad = x.norm() / x.grad.norm() * x.grad
         optimizer.step()
         score_traj.append(score.detach().clone().cpu())
+        if langevin_eps > 0:
+            # if > 0 then add noise to become Langevin gradient descent jump minimum
+            x.data.add_(torch.randn(x.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
             print("step %d, score %s"%(step, " ".join("%.1f"%s for s in -score)))
         pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
@@ -215,8 +229,9 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
 
 def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, saveimg=False):
+    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
     """ Visualize the features carried by the scorer.  """
+    scorer.mode = score_mode
     z = 0.5*torch.randn([Bsize, 4096]).cuda()
     z.requires_grad_(True)
     optimizer = Adam([z], lr=lr) if use_adam else SGD([z], lr=lr)
