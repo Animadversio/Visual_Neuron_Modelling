@@ -67,6 +67,7 @@ class CorrFeatScore:
         self.hooks = []
         self.layers = []
         self.scores = {}
+        self.netname = None
         self.mode = "dot"  # "corr"
 
     def hook_forger(self, layer, grad=True):
@@ -94,6 +95,7 @@ class CorrFeatScore:
             actH = targmodule.register_forward_hook(self.hook_forger(layer))
             self.hooks.append(actH)
             self.layers.append(layer)
+        self.netname = netname
 
     def register_weights(self, weight_dict):
         for layer, weight in weight_dict.items():
