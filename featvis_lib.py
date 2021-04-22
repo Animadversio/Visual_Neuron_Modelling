@@ -1,5 +1,5 @@
 """This library provides higher level wrapper over CorrFeatTsr_visualize
-Specifically, it provides functions that visualize a feature vector / tensor in a given layer 
+Specifically, it provides functions that visualize a feature vector / tensor in a given layer
 """
 #%%
 # %load_ext autoreload
@@ -15,7 +15,7 @@ from os.path import join
 import numpy as np
 from scipy.io import loadmat
 from sklearn.decomposition import NMF
-import matplotlib 
+import matplotlib
 import matplotlib.pylab as plt
 matplotlib.rcParams['pdf.fonttype'] = 42
 from numpy.linalg import norm as npnorm
@@ -29,6 +29,9 @@ from data_loader import mat_path, load_score_mat, loadmat
 from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage
 ckpt_dir = r"E:\Cluster_Backup\torch"
+# !subst N: E:\Network_Data_Sync
+# !subst S: E:\Network_Data_Sync
+# !subst O: "E:\OneDrive - Washington University in St. Louis"
 
 #%
 def align_clim(Mcol: matplotlib.image.AxesImage):
@@ -93,8 +96,8 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
 
     reg_cc = np.corrcoef((ccfactor @ Hmat.T).flatten(), ccmat.flatten())[0,1]
     print("Predictability of the corr coef tensor %.3f"%reg_cc)
-    # Visualize maps as 3 channel image.  
-    plt.imshow(Hmaps[:,:,:3] / Hmaps[:,:,:3].max()) 
+    # Visualize maps as 3 channel image.
+    plt.imshow(Hmaps[:,:,:3] / Hmaps[:,:,:3].max())
     plt.axis('off')
     plt.title("channel merged")
     plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr)))
@@ -398,7 +401,7 @@ if __name__ == "__main__":
     bdr = 1; NF = 5
     Ttsr_pp = rectify_tsr(Ttsr, "abs")  # "mode="thresh", thr=(-5,5))
     Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF, figdir=figdir, savestr="%s-%s"%(netname, layer))
-    
+
     finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="")
     finimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, Bsize=5,
                                                   bdr=bdr, figdir=figdir, savestr="")
@@ -427,17 +430,17 @@ if __name__ == "__main__":
     #%%
     featnet(finimgs.cuda())
     #%%
-    
+
     ci=4
     maptype = "cov"
-    
+
     act_feattsr = scorer.feat_tsr[layer].cpu()
     target_vec = torch.from_numpy(ccfactor[:, ci:ci+1]).reshape([1,-1,1,1]).float()
     cov_map = (act_feattsr * target_vec).mean(dim=1, keepdim=False)
     z_feattsr = (act_feattsr - act_feattsr.mean(dim=1, keepdim=True)) / act_feattsr.std(dim=1, keepdim=True)
     z_featvec = (target_vec - target_vec.mean(dim=1, keepdim=True)) / target_vec.std(dim=1, keepdim=True)
     corr_map = (z_feattsr * z_featvec).mean(dim=1)
-    
+
     map2show = cov_map if maptype == "cov" else corr_map
     NS = map2show.shape[0]
     #%%
