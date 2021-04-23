@@ -122,6 +122,73 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
     return Hmat, Hmaps, Tcompon, ccfactor
 
 
+def posneg_sep(tsr, axis):
+    return np.concatenate((np.clip(tsr, 0, None), -np.clip(tsr, None, 0)), axis=axis)
+
+
+def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", solver="cd",
+                figdir="", savestr=""):
+    """ Factorize the T tensor using NMF, compute the corresponding features for cctsr """
+    C, H, W = cctsr.shape
+    if bdr == 0:
+        ccmat = cctsr.reshape(C, H * W)
+    else:
+        ccmat = cctsr[:, bdr:-bdr, bdr:-bdr].reshape(C, (H-2*bdr)*(W-2*bdr))
+    if np.any(ccmat < 0):
+        sep_flag = True
+        posccmat = posneg_sep(ccmat, 0)
+    else:
+        sep_flag = False
+        posccmat = ccmat
+    nmfsolver = NMF(n_components=Nfactor, init=init, solver=solver)  # mu
+    Hmat = nmfsolver.fit_transform(posccmat.T)
+    Hmaps = Hmat.reshape([H-2*bdr, W-2*bdr, Nfactor])
+    CCcompon = nmfsolver.components_
+    if sep_flag:
+        ccfactor = (CCcompon[:, :C] - CCcompon[:, C:]).T
+    else:
+        ccfactor = CCcompon.T
+    exp_var = 1-npnorm(posccmat.T - Hmat @ CCcompon) / npnorm(ccmat)
+    print("NMF explained variance %.3f"%exp_var)
+    # ccfactor = (ccmat @ np.linalg.pinv(Hmat).T )
+    # ccfactor = (ccmat @ Hmat)
+    # Calculate norm of diff factors
+    fact_norms = []
+    for i in range(Hmaps.shape[2]):
+        rank1_mat = Hmat[:, i:i+1]@CCcompon[i:i+1, :]
+        matnorm = npnorm(rank1_mat, ord="fro")
+        fact_norms.append(matnorm)
+        print("Factor%d norm %.2f"%(i, matnorm))
+
+    reg_cc = np.corrcoef((ccfactor @ Hmat.T).flatten(), ccmat.flatten())[0,1]
+    print("Predictability of the corr coef tensor %.3f"%reg_cc)
+    # Visualize maps as 3 channel image.
+    if Hmaps.shape[2] < 3:
+        Hmaps_plot = np.concatenate((Hmaps, np.zeros((*Hmaps.shape[:2], 3 - Hmaps.shape[2]))), axis=2)
+    else:
+        Hmaps_plot = Hmaps[:, :, :3]
+    plt.imshow(Hmaps_plot / Hmaps_plot.max())
+    plt.axis('off')
+    plt.title("channel merged")
+    plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr)))
+    plt.savefig(join(figdir, "%s_factor_merged.pdf" % (savestr)))
+    plt.show()
+    # Visualize maps and their associated channel vector
+    [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0], squeeze=False)
+    for ci in range(Hmaps.shape[2]):
+        plt.sca(axs[0, ci])  # show the map correlation
+        plt.imshow(Hmaps[:, :, ci] / Hmaps.max())
+        plt.axis("off")
+        plt.colorbar()
+        plt.sca(axs[1, ci])  # show the channel association
+        axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
+    plt.suptitle("Separate Factors")
+    figh.savefig(join(figdir, "%s_factors.png" % (savestr)))
+    figh.savefig(join(figdir, "%s_factors.pdf" % (savestr)))
+    plt.show()
+    return Hmat, Hmaps, ccfactor
+
+
 def load_featnet(netname: str):
     if netname == "alexnet":
         net = models.alexnet(True)
