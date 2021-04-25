@@ -29,6 +29,11 @@ def resample_correlation(scorecol, trial=100):
     split_cc_std = np.nanstd(resamp_ccmat)
     return split_cc_mean, split_cc_std
 
+
+def area_mapping(num):
+    if num <= 32: return "IT"
+    elif num <= 48 and num >= 33: return "V1"
+    elif num >= 49: return "V4"
 #%% population level analysis
 #"_nobdr"
 netname = "vgg16"
@@ -40,8 +45,8 @@ featnet, net = load_featnet(netname)
 ExpStat_col = []
 PredStat_col = []
 FactStat_col = []
-# netname = "vgg16";layer = "conv4_3";exp_suffix = "_nobdr"
-netname = "alexnet"; layer = "conv2"; exp_suffix = "_nobdr_alex"
+netname = "vgg16";layer = "conv5_3";exp_suffix = "_nobdr"
+# netname = "alexnet"; layer = "conv3"; exp_suffix = "_nobdr_alex"
 bdr = 1; NF = 3
 rect_mode = "none"
 thresh = (None, None)
@@ -54,6 +59,7 @@ for Animal in ["Alfa", "Beto"]:
         imgsize = EStats[Expi - 1].evol.imgsize
         imgpos = EStats[Expi - 1].evol.imgpos
         pref_chan = EStats[Expi - 1].evol.pref_chan
+        area = area_mapping(pref_chan)
         imgpix = int(imgsize * 40)
         explabel = "%s Exp%02d Driver Chan %d, %.1f deg [%s]" % (Animal, Expi, pref_chan, imgsize, tuple(imgpos))
         corrDict = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_Evol%s_corrTsr.npz" % (Animal, Expi, exp_suffix)),
@@ -98,8 +104,9 @@ for Animal in ["Alfa", "Beto"]:
             PredStat[varnm] = eval(varnm)
         PredStat.cc_aft_norm = PredStat.cc_aft / corr_ceil_mean  # prediction normalized by noise ceiling.
         PredStat.cc_bef_norm = PredStat.cc_bef / corr_ceil_mean
+        # Meta info and
         ExpStat = EasyDict()
-        for varnm in ["Animal", "Expi", "pref_chan", "imgsize", "imgpos"]:
+        for varnm in ["Animal", "Expi", "pref_chan", "area", "imgsize", "imgpos"]:
             ExpStat[varnm] = eval(varnm)
         PredStat_col.append(PredStat)
         FactStat_col.append(FactStat)
@@ -120,42 +127,42 @@ tab.to_csv(join(sumdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, laye
 print("%s Layer %s rectify_mode %s border %d Nfact %d"%(netname, layer, rect_mode, bdr, NF))
 summarize_tab(tab)
 #%%
+from scipy.stats import ttest_rel, ttest_ind
 os.listdir(sumdir)
 
-tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv"))
-tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
-plt.figure(figsize=[6,5])
-plt.scatter(tab1.cc_bef, tab2.cc_bef)
-plt.gca().set_aspect('equal', adjustable='datalim')
-plt.ylabel("alexnet-conv3")
-plt.xlabel("vgg16-conv3_3")
-plt.title("Linear model prediction comparison")
-plt.savefig(join(sumdir, "models_pred_cmp.png"))
-plt.savefig(join(sumdir, "models_pred_cmp.pdf"))
-plt.show()
 #%%
-from scipy.stats import ttest_rel, ttest_ind
+# varnm = "cc_bef"; colorvar = "area"; stylevar = "Animal"
+# explab1 = "vgg16-conv4_3"; explab2 = "alexnet-conv3"#"vgg16-conv3_3"
+# tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))
+# tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
+# # tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv'))
 
+def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="area", stylevar="Animal"):
+    tab1["area"] = ""
+    tab1["area"][tab1.pref_chan <= 32] = "IT"
+    tab1["area"][(tab1.pref_chan <= 48) & (tab1.pref_chan >= 33)] = "V1"
+    tab1["area"][tab1.pref_chan >= 49] = "V4"
+    figh = plt.figure()
+    sns.scatterplot(x=tab1[varnm], y=tab2[varnm], hue=tab1[colorvar], style=tab1[stylevar])
+    plt.ylabel(explab2);plt.xlabel(explab1)
+    plt.gca().set_aspect('equal', adjustable='box')  # datalim
+    cc = np.corrcoef(tab1[varnm], tab2[varnm])[0, 1]
+    tval, pval = ttest_rel(np.arctanh(tab1[varnm]), np.arctanh(tab2[varnm])) # ttest: exp1 - exp2
+    plt.title("Linear model prediction comparison\ncc %.3f t test(Fisher z) %.2f (%.1e)"%(cc, tval, pval))
+    plt.savefig(join(sumdir, "models_pred_cmp_%s_%s.png"%(explab1, explab2)))
+    plt.savefig(join(sumdir, "models_pred_cmp_%s_%s.pdf"%(explab1, explab2)))
+    plt.show()
+    return figh
 
-varnm = "cc_bef"; colorvar = "area"
 explab1 = "vgg16-conv4_3"; explab2 = "alexnet-conv3"#"vgg16-conv3_3"
 tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))
+# tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_alexnet-conv2_none_bdr1_NF3.csv"))
 tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
-# tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv'))
-
-tab1["area"] = ""
-tab1["area"][tab1.pref_chan <= 32] = "IT"
-tab1["area"][(tab1.pref_chan <= 48) & (tab1.pref_chan >= 33)] = "V1"
-tab1["area"][tab1.pref_chan >= 49] = "V4"
-sns.scatterplot(x=tab1[varnm], y=tab2[varnm], hue=tab1[colorvar], style=tab1["Animal"])
-plt.ylabel(explab2);plt.xlabel(explab1)
-plt.gca().set_aspect('equal', adjustable='box')  # datalim
-cc = np.corrcoef(tab1[varnm], tab2[varnm])[0, 1]
-tval, pval = ttest_rel(np.arctanh(tab1[varnm]), np.arctanh(tab2[varnm]))
-plt.title("Linear model prediction comparison\ncc %.3f t test(Fisher z) %.2f (%.1e)"%(cc, tval, pval))
-plt.savefig(join(sumdir, "models_pred_cmp_%s_%s.png"%(explab1, explab2)))
-plt.savefig(join(sumdir, "models_pred_cmp_%s_%s.pdf"%(explab1, explab2)))
-plt.show()
+pred_cmp_scatter(tab1, tab2, "alexnet-conv2", "alexnet-conv3")
+#%%
+tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_alexnet-conv3_pos_bdr1_NF3.csv"))
+tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
+pred_cmp_scatter(tab1, tab2, "alexnet-conv3_pos", "alexnet-conv3_none")
 #%% #################################################################
 #%  Development Zone
 #%  #################################################################
