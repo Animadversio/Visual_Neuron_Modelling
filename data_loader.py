@@ -26,7 +26,7 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
     :param wdws:
     :return:
     """
-    if ExpType=="Evol":
+    if ExpType == "Evol":
         psth = EStats[Expi-1].evol.psth
         if psth[0].ndim == 3:
             nunit = psth[0].shape[0]
@@ -70,6 +70,17 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             return score_vect, imgfullpath_vect
         elif ExpType == "Manif_sgtr":
             return scorecol, imgfullpath_vect
+    elif "EvolRef" in ExpType:
+        EStats[44].ref.psth_arr[5].shape
+        if ExpType == "EvolRef_avg":
+            score_vect = np.array([np.mean(score) for score in scorecol]).astype(np.float)
+            return score_vect, imgfullpath_vect
+        elif ExpType == "EvolRef_sgtr":
+            return scorecol, imgfullpath_vect
+    elif "Gabor" in ExpType:
+        pass
+
+
 # ui = EStats[Expi - 1].evol.unit_in_pref_chan # unit id in the pref chan
 # psth = MStats[Expi-1].manif.psth.reshape(-1)
 # if psth[0].ndim == 3:

@@ -19,18 +19,41 @@ import matplotlib
 import matplotlib.pylab as plt
 matplotlib.rcParams['pdf.fonttype'] = 42
 from numpy.linalg import norm as npnorm
-
+from easydict import EasyDict
+from data_loader import mat_path, load_score_mat, loadmat
 from CorrFeatTsr_visualize import CorrFeatScore, corr_GAN_visualize, corr_visualize, preprocess, save_imgtsr
 from GAN_utils import upconvGAN
 import torch
 from torch import nn
 from torchvision import models
-from data_loader import mat_path, load_score_mat, loadmat
 from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage
 ckpt_dir = r"E:\Cluster_Backup\torch"
 
-#%
+
+def load_featnet(netname: str):
+    if netname == "alexnet":
+        net = models.alexnet(True)
+        net.requires_grad_(False)
+        featnet = net.features.cuda().eval()
+    elif netname == "vgg16":
+        net = models.vgg16(pretrained=True)
+        net.requires_grad_(False)
+        featnet = net.features.cuda().eval()
+    elif netname == "resnet50":
+        net = models.resnet50(pretrained=True)
+        net.requires_grad_(False)
+        featnet = net.cuda().eval()
+    elif netname == "resnet50_linf8":
+        net = models.resnet50(pretrained=True)
+        net.load_state_dict(torch.load(join(ckpt_dir, "imagenet_linf_8_pure.pt")))
+        net.requires_grad_(False)
+        featnet = net.cuda().eval()
+    else:
+        raise ValueError
+    return featnet, net
+
+
 def align_clim(Mcol: matplotlib.image.AxesImage):
     """Util function to align the color axes of a bunch of imshow maps."""
     cmin = np.inf
@@ -62,13 +85,15 @@ def rectify_tsr(Ttsr: np.ndarray, mode="abs", thr=(-5, 5)):
         Ttsr_pp = Ttsr.copy()
         Ttsr_pp[(Ttsr < thr[1]) * (Ttsr > thr[0])] = 0
         Ttsr_pp = np.abs(Ttsr_pp)
+    elif mode is "none":
+        Ttsr_pp = Ttsr
     else:
         raise ValueError
     return Ttsr_pp
 
 
 def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", solver="cd",
-                figdir="", savestr=""):
+                figdir="", savestr="", suptit=""):
     """ Factorize the T tensor using NMF, compute the corresponding features for cctsr """
     C, H, W = Ttsr_pp.shape
     if bdr == 0:
@@ -99,7 +124,7 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
     plt.imshow(Hmaps[:,:,:3] / Hmaps[:,:,:3].max()) 
     plt.axis('off')
     plt.title("channel merged")
-    plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr)))
+    plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr))) # Indirect factorize
     plt.savefig(join(figdir, "%s_factor_merged.pdf" % (savestr)))
     plt.show()
     # Visualize maps and their associated channel vector
@@ -110,25 +135,33 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
         plt.axis("off")
         plt.colorbar()
         plt.sca(axs[1, ci])  # show the channel association
-        axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
+        axs[1, ci].plot(ccfactor[:, ci], alpha=0.5) # show the indirectly computed correlation the left. 
         ax2 = axs[1, ci].twinx()
-        ax2.plot(Tcompon.T[:, ci], color="C1", alpha=0.5)
+        ax2.plot(Tcompon.T[:, ci], color="C1", alpha=0.5) # show the directly computed factors for T tensor on the right. 
         ax2.spines['left'].set_color('C0')
         ax2.spines['right'].set_color('C1')
-    plt.suptitle("Separate Factors")
+    plt.suptitle("%s Separate Factors"%suptit)
     figh.savefig(join(figdir, "%s_factors.png" % (savestr)))
     figh.savefig(join(figdir, "%s_factors.pdf" % (savestr)))
     plt.show()
-    return Hmat, Hmaps, Tcompon, ccfactor
+    Stat = EasyDict()
+    for varnm in ["reg_cc", "fact_norms", "exp_var", "C", "H", "W", "bdr", "Nfactor", "init", "solver"]:
+        Stat[varnm] = eval(varnm)
+    return Hmat, Hmaps, Tcompon, ccfactor, Stat
 
 
-def posneg_sep(tsr, axis):
+def posneg_sep(tsr: np.ndarray, axis=0):
+    """Separate the positive and negative entries of a matrix and concatenate along certain axis."""
     return np.concatenate((np.clip(tsr, 0, None), -np.clip(tsr, None, 0)), axis=axis)
 
 
 def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", solver="cd",
-                figdir="", savestr=""):
-    """ Factorize the T tensor using NMF, compute the corresponding features for cctsr """
+                figdir="", savestr="", suptit=""):
+    """ Factorize the cc tensor using NMF directly
+    If any entries of cctsr is negative, it will use `posneg_sep` to create an augmented matrix with only positive entries.
+    Then use NMF on that matrix. This process simulates the one sided NNMF. 
+
+    """
     C, H, W = cctsr.shape
     if bdr == 0:
         ccmat = cctsr.reshape(C, H * W)
@@ -143,8 +176,8 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
     nmfsolver = NMF(n_components=Nfactor, init=init, solver=solver)  # mu
     Hmat = nmfsolver.fit_transform(posccmat.T)
     Hmaps = Hmat.reshape([H-2*bdr, W-2*bdr, Nfactor])
-    CCcompon = nmfsolver.components_
-    if sep_flag:
+    CCcompon = nmfsolver.components_  # potentially augmented CC components
+    if sep_flag:  # reproduce the positive and negative factors back. 
         ccfactor = (CCcompon[:, :C] - CCcompon[:, C:]).T
     else:
         ccfactor = CCcompon.T
@@ -161,17 +194,17 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
         print("Factor%d norm %.2f"%(i, matnorm))
 
     reg_cc = np.corrcoef((ccfactor @ Hmat.T).flatten(), ccmat.flatten())[0,1]
-    print("Predictability of the corr coef tensor %.3f"%reg_cc)
+    print("Correlation to the corr coef tensor %.3f"%reg_cc)
     # Visualize maps as 3 channel image.
-    if Hmaps.shape[2] < 3:
+    if Hmaps.shape[2] < 3: # Add zero channels if < 3 channels are there. 
         Hmaps_plot = np.concatenate((Hmaps, np.zeros((*Hmaps.shape[:2], 3 - Hmaps.shape[2]))), axis=2)
     else:
         Hmaps_plot = Hmaps[:, :, :3]
     plt.imshow(Hmaps_plot / Hmaps_plot.max())
     plt.axis('off')
-    plt.title("channel merged")
-    plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr)))
-    plt.savefig(join(figdir, "%s_factor_merged.pdf" % (savestr)))
+    plt.title("%s\nchannel merged"%suptit)
+    plt.savefig(join(figdir, "%s_dir_factor_merged.png" % (savestr))) # direct factorize
+    plt.savefig(join(figdir, "%s_dir_factor_merged.pdf" % (savestr)))
     plt.show()
     # Visualize maps and their associated channel vector
     [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0], squeeze=False)
@@ -182,34 +215,14 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
         plt.colorbar()
         plt.sca(axs[1, ci])  # show the channel association
         axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
-    plt.suptitle("Separate Factors")
-    figh.savefig(join(figdir, "%s_factors.png" % (savestr)))
-    figh.savefig(join(figdir, "%s_factors.pdf" % (savestr)))
+    plt.suptitle("%s\nSeparate Factors"%suptit)
+    figh.savefig(join(figdir, "%s_dir_factors.png" % (savestr)))
+    figh.savefig(join(figdir, "%s_dir_factors.pdf" % (savestr)))
     plt.show()
-    return Hmat, Hmaps, ccfactor
-
-
-def load_featnet(netname: str):
-    if netname == "alexnet":
-        net = models.alexnet(True)
-        net.requires_grad_(False)
-        featnet = net.features.cuda().eval()
-    elif netname == "vgg16":
-        net = models.vgg16(pretrained=True)
-        net.requires_grad_(False)
-        featnet = net.features.cuda().eval()
-    elif netname == "resnet50":
-        net = models.resnet50(pretrained=True)
-        net.requires_grad_(False)
-        featnet = net.cuda().eval()
-    elif netname == "resnet50_linf8":
-        net = models.resnet50(pretrained=True)
-        net.load_state_dict(torch.load(join(ckpt_dir, "imagenet_linf_8_pure.pt")))
-        net.requires_grad_(False)
-        featnet = net.cuda().eval()
-    else:
-        raise ValueError
-    return featnet, net
+    Stat = EasyDict()
+    for varnm in ["exp_var", "reg_cc", "fact_norms", "exp_var", "C", "H", "W", "bdr", "Nfactor", "init", "solver"]:
+        Stat[varnm] = eval(varnm)
+    return Hmat, Hmaps, ccfactor, Stat
 
 
 def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
@@ -430,13 +443,13 @@ def softplus(x, a, b, thr):
     return a * np.logaddexp(0, x - thr) + b
 
 
-def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True, savedir="", savenm=""):
+def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True, savedir="", savenm="", suptit=""):
     """Given a linearly predicted score and target score, fit a nonlinearity to minimize error.
     TODO: Maybe need cross fit and prediction.
     :param pred_score_np: predicted scores to be transformed. np.array
     :param score_vect: target scores. np.array
     :Example
-        nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect)
+        nlfunc, popt, pcov, scaling, nlpred_score, Stat = fitnl_predscore(pred_score.numpy(), score_vect)
     """
     # first normalize scale of pred score
     scaling = 1/pred_score_np.std()*score_vect.std()
@@ -453,6 +466,7 @@ def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True
     print("Correlation before nonlinearity fitting %.3f; after nonlinearity fitting %.3f"%(cc_bef, cc_aft))
     np.savez(join(savedir, "nlfit_result%s.npz"%savenm), cc_bef=cc_bef, cc_aft=cc_aft, scaling=scaling, popt=popt,
              pcov=pcov, nlpred_score=nlpred_score, obs_score=score_vect)
+    Stat = EasyDict({"cc_bef": cc_bef, "cc_aft": cc_aft})
     if show:
         figh = plt.figure(figsize=[8, 4.5])
         plt.subplot(121)
@@ -468,10 +482,11 @@ def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True
         plt.xlabel("Factor Prediction + nl")
         plt.ylabel("Original Scores")
         plt.title("After Fitting corr %.3f"%(cc_aft))
+        plt.suptitle(suptit+" score cmp")
         plt.show()
         figh.savefig(join(savedir, "nlfit_vis_%s.png"%savenm))
         figh.savefig(join(savedir, "nlfit_vis_%s.pdf"%savenm))
-    return nlfunc, popt, pcov, scaling, nlpred_score
+    return nlfunc, popt, pcov, scaling, nlpred_score, Stat
 
 
 #%%
