@@ -1,5 +1,5 @@
 """This library provides higher level wrapper over CorrFeatTsr_visualize
-Specifically, it provides functions that visualize a feature vector / tensor in a given layer
+Specifically, it provides functions that visualize a feature vector / tensor in a given layer 
 """
 #%%
 # %load_ext autoreload
@@ -15,7 +15,7 @@ from os.path import join
 import numpy as np
 from scipy.io import loadmat
 from sklearn.decomposition import NMF
-import matplotlib
+import matplotlib 
 import matplotlib.pylab as plt
 matplotlib.rcParams['pdf.fonttype'] = 42
 from numpy.linalg import norm as npnorm
@@ -29,9 +29,6 @@ from data_loader import mat_path, load_score_mat, loadmat
 from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage
 ckpt_dir = r"E:\Cluster_Backup\torch"
-# !subst N: E:\Network_Data_Sync
-# !subst S: E:\Network_Data_Sync
-# !subst O: "E:\OneDrive - Washington University in St. Louis"
 
 #%
 def align_clim(Mcol: matplotlib.image.AxesImage):
@@ -55,11 +52,13 @@ def show_img(img):
 
 def rectify_tsr(Ttsr: np.ndarray, mode="abs", thr=(-5, 5)):
     """ Rectify tensor to prep for NMF """
-    if mode is "pos_rect":
+    if mode is "pos":
         Ttsr_pp = np.clip(Ttsr, 0, None)
     elif mode is "abs":
         Ttsr_pp = np.abs(Ttsr)
     elif mode is "thresh":
+        if thr[0] is None: thr[0] = - np.inf
+        if thr[1] is None: thr[1] =   np.inf
         Ttsr_pp = Ttsr.copy()
         Ttsr_pp[(Ttsr < thr[1]) * (Ttsr > thr[0])] = 0
         Ttsr_pp = np.abs(Ttsr_pp)
@@ -96,8 +95,8 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
 
     reg_cc = np.corrcoef((ccfactor @ Hmat.T).flatten(), ccmat.flatten())[0,1]
     print("Predictability of the corr coef tensor %.3f"%reg_cc)
-    # Visualize maps as 3 channel image.
-    plt.imshow(Hmaps[:,:,:3] / Hmaps[:,:,:3].max())
+    # Visualize maps as 3 channel image.  
+    plt.imshow(Hmaps[:,:,:3] / Hmaps[:,:,:3].max()) 
     plt.axis('off')
     plt.title("channel merged")
     plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr)))
@@ -157,9 +156,14 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
     for ci in range(ccfactor.shape[1]):
         fact_W = torch.from_numpy(ccfactor[:, ci]).reshape([1,-1,1,1])
         scorer.register_weights({layer: fact_W})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
-            lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
-            imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
+        if G is None:
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+             lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+             imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
+        else:
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+             lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+             imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
                         figdir=figdir, savestr="fac%d_full_%s%s"%(ci, savestr, netname))
         finimgs_col.append(finimgs)
@@ -184,9 +188,14 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
                          mode="constant", constant_values=0)
         fact_Chtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci+1], sp_mask))
         scorer.register_weights({layer: fact_Chtsr})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
-                lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
-                imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
+        if G is None:
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
+        else:
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
                         figdir=figdir, savestr="fac%d_cntpnt_%s%s"%(ci, savestr, netname))
         finimgs_col.append(finimgs)
@@ -209,9 +218,14 @@ def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
         fact_Wtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci + 1], padded_mask))
         show_img(padded_mask[:, :, 0])
         scorer.register_weights({layer: fact_Wtsr})
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
-                lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
-                imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
+        if G is None:
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
+        else:
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
                         figdir=figdir, savestr="fac%d_map_%s%s"%(ci, savestr, netname))
         finimgs_col.append(finimgs)
@@ -230,9 +244,14 @@ def vis_feattsr(cctsr, net, G, layer, netname="alexnet", featnet=None, bdr=2,
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
     scorer.register_weights({layer: cctsr})
-    finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
-            lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
-            imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="tsr_%s%s-%s"%(savestr, netname, layer))
+    if G is None:
+        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+          lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+          imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="tsr_%s%s-%s"%(savestr, netname, layer))
+    else:
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+          lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+          imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="tsr_%s%s-%s"%(savestr, netname, layer))
     scorer.clear_hook()
     return finimgs, mtg, score_traj
 
@@ -247,11 +266,22 @@ def vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname="alexnet", featne
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
     scorer.register_weights({layer: DR_Wtsr})
-    finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+    if G is None:
+        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+          lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
+          imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="facttsr_%s%s-%s"%(savestr, netname, layer))
+    else:
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
             lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode,
             imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="facttsr_%s%s-%s"%(savestr, netname, layer))
     scorer.clear_hook()
     return finimgs, mtg, score_traj
+
+
+def pad_factor_prod(Hmaps, ccfactor, bdr=0):
+    padded_mask = np.pad(Hmaps[:, :, :], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
+    DR_Wtsr = np.einsum("ij,klj->ikl", ccfactor[:, :], padded_mask)
+    return DR_Wtsr
 
 
 def vis_featmap_corr(scorer: CorrFeatScore, featnet: nn.Module, finimgs: torch.tensor, targvect: np.ndarray, layer: str,
@@ -301,7 +331,7 @@ def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preproces
     :return:
         score_all: tensor of returned scores.
 
-    :demo:
+    :Example:
         scorer = CorrFeatScore()
         scorer.register_hooks(net, layer, netname=netname)
         scorer.register_weights({layer: DR_Wtsr})
@@ -316,7 +346,7 @@ def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preproces
     score_all = []
     while csr < imgN:
         cend = min(csr + batchsize, imgN)
-        input_tsr = imgloader(imgfps[csr:cend], borderblur=True)  # imgpix=120, fullimgsz=224
+        input_tsr = imgloader(imgfps[csr:cend])  # imgpix=120, fullimgsz=224, borderblur=True
         with torch.no_grad():
             part_tsr = featNet(input_tsr.cuda()).cpu()
             score = scorer.corrfeat_score(layername)
@@ -333,11 +363,11 @@ def softplus(x, a, b, thr):
     return a * np.logaddexp(0, x - thr) + b
 
 
-def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm=""):
+def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True, savedir="", savenm=""):
     """Given a linearly predicted score and target score, fit a nonlinearity to minimize error.
     TODO: Maybe need cross fit and prediction.
-    :param pred_score_np: predicted scores
-    :param score_vect: target scores
+    :param pred_score_np: predicted scores to be transformed. np.array
+    :param score_vect: target scores. np.array
     :Example
         nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect)
     """
@@ -346,7 +376,8 @@ def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm="")
     pred_score_np_norm = pred_score_np * scaling
     popt, pcov = curve_fit(softplus, pred_score_np_norm, score_vect, \
           p0=[1, min(score_vect), np.median(pred_score_np_norm)], \
-          bounds=([0, 0, min(pred_score_np_norm)-10], [np.inf, max(score_vect), max(pred_score_np_norm)]))
+          bounds=([0, min(score_vect) - 10, min(pred_score_np_norm)-10],
+                  [np.inf, max(score_vect), max(pred_score_np_norm)]))
     print("NL parameters: amp %.1e baseline %.1e thresh %.1e" % tuple(popt))
     nlpred_score = softplus(pred_score_np_norm, *popt)
     nlfunc = lambda predicted: softplus(predicted * scaling, *popt)
@@ -358,14 +389,14 @@ def fitnl_predscore(pred_score_np, score_vect, show=True, savedir="", savenm="")
     if show:
         figh = plt.figure(figsize=[8, 4.5])
         plt.subplot(121)
-        plt.scatter(pred_score_np, nlpred_score, alpha=0.6, label="fitting")
-        plt.scatter(pred_score_np, score_vect, alpha=0.6, label="data")
+        plt.scatter(pred_score_np, nlpred_score, alpha=0.5, label="fitting")
+        plt.scatter(pred_score_np, score_vect, alpha=0.5, label="data")
         plt.xlabel("Factor Prediction")
         plt.ylabel("Original Scores")
         plt.title("Before Fitting corr %.3f"%(cc_bef))
         plt.legend()
         plt.subplot(122)
-        plt.scatter(nlpred_score, score_vect)
+        plt.scatter(nlpred_score, score_vect, alpha=0.5)
         plt.axis("image")
         plt.xlabel("Factor Prediction + nl")
         plt.ylabel("Original Scores")
@@ -401,7 +432,7 @@ if __name__ == "__main__":
     bdr = 1; NF = 5
     Ttsr_pp = rectify_tsr(Ttsr, "abs")  # "mode="thresh", thr=(-5,5))
     Hmat, Hmaps, Tcomponents, ccfactor = tsr_factorize(Ttsr_pp, cctsr, bdr=bdr, Nfactor=NF, figdir=figdir, savestr="%s-%s"%(netname, layer))
-
+    
     finimgs, mtg, score_traj = vis_feattsr(cctsr, net, G, layer, netname=netname, Bsize=5, figdir=figdir, savestr="")
     finimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, Bsize=5,
                                                   bdr=bdr, figdir=figdir, savestr="")
@@ -411,7 +442,9 @@ if __name__ == "__main__":
                                  featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
     finimgs_col, mtg_col, score_traj_col = vis_featvec_point(ccfactor, Hmaps, net, G, layer, netname=netname,
                                  featnet=featnet, bdr=bdr, Bsize=5, figdir=figdir, savestr="", imshow=False)
-    #%%
+
+
+    #%% Development zone for feature map visualization
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
     finimgs_col, mtg_col, score_traj_col = [], [], []
@@ -430,7 +463,6 @@ if __name__ == "__main__":
     #%%
     featnet(finimgs.cuda())
     #%%
-
     ci=4
     maptype = "cov"
 
