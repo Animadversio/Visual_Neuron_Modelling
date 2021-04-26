@@ -335,8 +335,11 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
         curimg = imread(img_path)
-        x = preprocess(curimg)
-        ppimgs.append(x.unsqueeze(0))
+        if curimg.ndim == 2:  # curimg.shape[2] == 1 or
+            curimg = np.repeat(curimg[:, :, np.newaxis], 3, axis=2) #FIXED Apr.25th 1,3 channel image
+        x = preprocess(curimg).unsqueeze(0)
+        x = F.interpolate(x, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
+        ppimgs.append(x)
     input_tsr = torch.cat(tuple(ppimgs), dim=0)
     # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow, no use
     input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
