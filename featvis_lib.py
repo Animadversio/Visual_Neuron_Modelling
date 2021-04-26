@@ -135,6 +135,7 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
         plt.axis("off")
         plt.colorbar()
         plt.sca(axs[1, ci])  # show the channel association
+        axs[1, ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.', alpha=0.4)
         axs[1, ci].plot(ccfactor[:, ci], alpha=0.5) # show the indirectly computed correlation the left. 
         ax2 = axs[1, ci].twinx()
         ax2.plot(Tcompon.T[:, ci], color="C1", alpha=0.5) # show the directly computed factors for T tensor on the right. 
@@ -214,6 +215,7 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
         plt.axis("off")
         plt.colorbar()
         plt.sca(axs[1, ci])  # show the channel association
+        axs[1, ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.', alpha=0.4)
         axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
         axs[1, ci].plot(sorted(ccfactor[:, ci]), alpha=0.25)
     plt.suptitle("%s\nSeparate Factors"%suptit)

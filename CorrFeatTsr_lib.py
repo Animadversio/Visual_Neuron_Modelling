@@ -337,6 +337,8 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
         curimg = imread(img_path)
         if curimg.ndim == 2:  # curimg.shape[2] == 1 or
             curimg = np.repeat(curimg[:, :, np.newaxis], 3, axis=2) #FIXED Apr.25th 1,3 channel image
+        elif curimg.shape[2] == 4:  # curimg.shape[2] == 1 or
+            curimg = curimg[:, :, :3]
         x = preprocess(curimg).unsqueeze(0)
         x = F.interpolate(x, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
         ppimgs.append(x)

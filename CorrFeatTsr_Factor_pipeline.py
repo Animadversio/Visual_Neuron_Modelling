@@ -75,13 +75,15 @@ def predict_fit_dataset(DR_Wtsr, imgfullpath_vect, score_vect, scorecol, net, la
     :param netname:
     :return:
     """
+    if len(imgfullpath_vect)==0:
+        return np.array([]), np.array([]), lambda x:x, EasyDict({"Nimg":0, "cc_bef":np.nan, "cc_aft":np.nan})
     scorer = CorrFeatScore()
     scorer.register_hooks(net, layer, netname=netname)
     scorer.register_weights({layer: DR_Wtsr})
     pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=imgloader,
-                                  batchsize=batchsize, )
+                                  batchsize=batchsize, ).numpy()
     scorer.clear_hook()
-    nlfunc, popt, pcov, scaling, nlpred_score, PredStat = fitnl_predscore(pred_score.numpy(), score_vect,
+    nlfunc, popt, pcov, scaling, nlpred_score, PredStat = fitnl_predscore(pred_score, score_vect,
                       savedir=figdir, savenm=savenm, suptit=suptit)
     # Record stats and form population statistics
     if scorecol is not None:
@@ -120,8 +122,59 @@ def nlfit_merged_dataset(pred_score_col:list, score_vect_col:list, scorecol_col:
         PredStat.cc_bef_norm = PredStat.cc_bef / corr_ceil_mean
     return pred_score_all, nlpred_score_all, score_vect_all, nlfunc, PredStat
 
+
+def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, savestr="", figdir=""):
+    if Hmaps is None: NF = 0
+    else: NF = Hmaps.shape[2]
+    ncol = max(4, NF+1)
+    figh, axs = plt.subplots(3, ncol, squeeze=False, figsize=[ncol*4, 9])
+    axs[0, 0].imshow(protoimg)
+    axs[0, 0].axis("off")
+
+    axs[1, 0].imshow(multichan2rgb(Hmaps))
+    axs[1, 0].axis("off")
+    for ci in range(NF):
+        plt.sca(axs[0, 1+ci])
+        im = axs[0, 1+ci].imshow(Hmaps[:, :, ci])
+        axs[0, 1+ci].axis("off")
+        figh.colorbar(im)
+        axs[1, 1+ci].plot(ccfactor[:, ci], alpha=0.5)
+        axs[1, 1+ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.')
+        axs[1, 1+ci].plot(sorted(ccfactor[:, ci]), alpha=0.3)
+        axs[1, 1+ci].set_xlim([0, ccfactor.shape[0]+1])
+
+    axs[2, 0].scatter(PD.pred_scr_manif, PD.nlpred_scr_manif, alpha=0.3, color='k', s=9)
+    axs[2, 0].scatter(PD.pred_scr_manif, PD.score_vect_manif, alpha=0.5, label="manif", s=25)
+    axs[2, 1].scatter(PD.nlpred_scr_manif, PD.score_vect_manif, alpha=0.5, s=25)
+    axs[2, 1].set_aspect(1, adjustable='datalim')
+    axs[2, 0].set_ylabel("Observed Scores")
+    axs[2, 0].set_xlabel("Factor Linear Pred")
+    axs[2, 1].set_xlabel("Factor Pred + nl")
+    axs[2, 0].set_title("Manif: Before NL Fit corr %.3f"%(AllStat.cc_bef_manif))
+    axs[2, 1].set_title("Manif: After NL Fit corr %.3f"%(AllStat.cc_aft_manif))
+    axs[2, 0].legend()
+
+    imglabel = AllStat.Nimg_manif*["manif"] + AllStat.Nimg_gabor*["gabor"] + \
+               AllStat.Nimg_pasu*["pasu"] + AllStat.Nimg_evoref*["evoref"]
+    axs[2, 2].scatter(PD.pred_scr_all, PD.nlpred_scr_all, alpha=0.3, color='k', s=9)
+    sns.scatterplot(x=PD.pred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 2])
+    sns.scatterplot(x=PD.nlpred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 3])
+    axs[2, 3].set_aspect(1, adjustable='datalim')
+    axs[2, 2].set_ylabel("Observed Scores")
+    axs[2, 2].set_xlabel("Factor Linear Pred")
+    axs[2, 3].set_xlabel("Factor Pred + nl")
+    axs[2, 2].set_title("All: Before NL Fit corr %.3f"%(AllStat.cc_bef_all))
+    axs[2, 3].set_title("All: After NL Fit corr %.3f"%(AllStat.cc_aft_all))
+    axs[2, 2].legend()
+    figh.suptitle(explabel, fontsize=14)
+    figh.show()
+    figh.savefig(join(figdir, "%s_summary.png"%savestr))
+    figh.savefig(join(figdir, "%s_summary.pdf"%savestr))
+    return figh
+
 figroot = "E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis"
 sumdir = join(figroot, "summary")
+exproot = join(figroot, "models")
 #%% population level analysis
 #"_nobdr"
 netname = "vgg16"
@@ -131,10 +184,12 @@ G.requires_grad_(False)
 featnet, net = load_featnet(netname)
 #%%
 # netname = "vgg16";layer = "conv5_3";exp_suffix = "_nobdr"
-netname = "alexnet"; layer = "conv3"; exp_suffix = "_nobdr_alex"
+netname = "alexnet"; layer = "conv5"; exp_suffix = "_nobdr_alex"
 bdr = 1; NF = 3
 rect_mode = "none"
 thresh = (None, None)
+expdir = join(exproot, "%s-%s_NF%d_%s_%s"%(netname, layer, NF, rect_mode, exp_suffix))
+os.makedirs(expdir, exist_ok=True)
 AllStat_col = []
 PredData_col = []
 for Animal in ["Alfa", "Beto"]:
@@ -209,22 +264,6 @@ for Animal in ["Alfa", "Beto"]:
                              [score_vect_manif, score_vect_evoref],
                              [scorecol_manif, scorecol_evoref], 
                              figdir=figdir, savenm="allnat_pred_cov", suptit=explabel+" allnat")
-        # corr_ceil_mean, corr_ceil_std = resample_correlation(scorecol, trial=100)
-        # DR_Wtsr = pad_factor_prod(Hmaps, ccfactor, bdr=bdr)
-        # scorer = CorrFeatScore()
-        # scorer.register_hooks(net, layer, netname=netname)
-        # scorer.register_weights({layer: DR_Wtsr})
-        # with torch.no_grad():
-        #     pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=loadimg_preprocess,
-        #                               batchsize=62,)
-        # scorer.clear_hook()
-        # nlfunc, popt, pcov, scaling, nlpred_score, PredStat = fitnl_predscore(pred_score.numpy(), score_vect, savedir=figdir,
-        #                                                     savenm="manif_pred_cov", suptit=explabel)
-        # # Record stats and form population statistics
-        # for varnm in ["corr_ceil_mean", "corr_ceil_std"]:
-        #     PredStat[varnm] = eval(varnm)
-        # PredStat.cc_aft_norm = PredStat.cc_aft / corr_ceil_mean  # prediction normalized by noise ceiling.
-        # PredStat.cc_bef_norm = PredStat.cc_bef / corr_ceil_mean
         # Meta info and
         ExpStat = EasyDict()
         for varnm in ["Animal", "Expi", "pref_chan", "area", "imgsize", "imgpos"]:
@@ -246,63 +285,43 @@ for Animal in ["Alfa", "Beto"]:
                         add_suffix(PredStat_allref, "_allref"),])
         AllStat_col.append(AllStat)
         PredData_col.append(PredData)
-        visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, )
-        break
-    break
+        figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
+            savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir)
 #%%
+#%%
+def summarize_tab(tab):
+    validmsk = ~((tab.Animal == "Alfa") & (tab.Expi == 10))
+    print("FactTsr cc: %.3f" % (tab[validmsk].reg_cc.mean()))
+    for sfx in ["_manif", "_all", "_allref"]:
+        print("For %s: cc before fit %.3f cc after fit %.3f cc norm after fit %.3f"%(sfx[1:], 
+            tab[validmsk]["cc_bef"+sfx].mean(), tab[validmsk]["cc_aft"+sfx].mean(), tab[validmsk]["cc_aft_norm"+sfx].mean()))
+    for sfx in ["_manif", "_all", "_allref"]:
+        print("For %s: %.3f \t%.3f \t%.3f" % (sfx[1:], tab[validmsk]["cc_bef" + sfx].mean(), 
+            tab[validmsk]["cc_aft" + sfx].mean(),tab[validmsk]["cc_aft_norm" + sfx].mean()))
+import pickle as pkl
+tab = pd.DataFrame(AllStat_col)
+tab.to_csv(join(sumdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))
+tab.to_csv(join(expdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))
+pkl.dump(PredData_col, open(join(expdir, "PredictionData.pkl"), "wb"))
+print("%s Layer %s rectify_mode %s border %d Nfact %d"%(netname, layer, rect_mode, bdr, NF))
+summarize_tab(tab)
 
+# exptab = pd.DataFrame(ExpStat_col)
+# predtab = pd.DataFrame(PredStat_col)
+# facttab = pd.DataFrame(FactStat_col)
+# tab = pd.concat((exptab, predtab, facttab), axis=1)
+#%%
+from scipy.stats import ttest_rel, ttest_ind
+os.listdir(sumdir)
+
+#%%
+# varnm = "cc_bef"; colorvar = "area"; stylevar = "Animal"
+# explab1 = "vgg16-conv4_3"; explab2 = "alexnet-conv3"#"vgg16-conv3_3"
+# tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))
+# tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
+# # tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv'))
+#%%
 #%% Visualization development zone
-
-def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, ):
-    if Hmaps is None: NF = 0
-    else: NF = Hmaps.shape[2]
-    ncol = max(4, NF+1)
-    figh, axs = plt.subplots(3, ncol, squeeze=False, figsize=[ncol*4, 9])
-    axs[0, 0].imshow(protoimg)
-    axs[0, 0].axis("off")
-
-    axs[1, 0].imshow(multichan2rgb(Hmaps))
-    axs[1, 0].axis("off")
-    for ci in range(NF):
-        plt.sca(axs[0, 1+ci])
-        im = axs[0, 1+ci].imshow(Hmaps[:, :, ci])
-        axs[0, 1+ci].axis("off")
-        figh.colorbar(im)
-        axs[1, 1+ci].plot(ccfactor[:, ci], alpha=0.5)
-        axs[1, 1+ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.')
-        axs[1, 1+ci].plot(sorted(ccfactor[:, ci]), alpha=0.3)
-        axs[1, 1+ci].set_xlim([0, ccfactor.shape[0]+1])
-
-    axs[2, 0].scatter(PD.pred_scr_manif, PD.nlpred_scr_manif, alpha=0.3, color='k', s=9)
-    axs[2, 0].scatter(PD.pred_scr_manif, PD.score_vect_manif, alpha=0.5, label="manif", s=25)
-    axs[2, 0].set_aspect(1, adjustable='datalim')
-    axs[2, 1].scatter(PD.nlpred_scr_manif, PD.score_vect_manif, alpha=0.5, s=25)
-    axs[2, 1].set_aspect(1, adjustable='datalim')
-    axs[2, 0].set_ylabel("Observed Scores")
-    axs[2, 0].set_xlabel("Factor Linear Pred")
-    axs[2, 1].set_xlabel("Factor Pred + nl")
-    axs[2, 0].set_title("Manif: Before NL Fit corr %.3f"%(AllStat.cc_bef_manif))
-    axs[2, 1].set_title("Manif: After NL Fit corr %.3f"%(AllStat.cc_aft_manif))
-    axs[2, 0].legend()
-
-    imglabel = AllStat.Nimg_manif*["manif"] + AllStat.Nimg_gabor*["gabor"] + \
-               AllStat.Nimg_pasu*["pasu"] + AllStat.Nimg_evoref*["evoref"]
-    axs[2, 2].scatter(PD.pred_scr_all, PD.nlpred_scr_all, alpha=0.3, color='k', s=9)
-    sns.scatterplot(x=PD.pred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 2])
-    # axs[2, 2].scatter(pred_scr_all, score_vect_all, alpha=0.5, label="all")
-    axs[2, 2].set_aspect(1, adjustable='datalim')
-    sns.scatterplot(x=PD.nlpred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 3])
-    # axs[2, 3].scatter(nlpred_scr_all, score_vect_all, alpha=0.5)
-    axs[2, 3].set_aspect(1, adjustable='datalim')
-    axs[2, 2].set_ylabel("Observed Scores")
-    axs[2, 2].set_xlabel("Factor Linear Pred")
-    axs[2, 3].set_xlabel("Factor Pred + nl")
-    axs[2, 2].set_title("All: Before NL Fit corr %.3f"%(AllStat.cc_bef_all))
-    axs[2, 3].set_title("All: After NL Fit corr %.3f"%(AllStat.cc_aft_all))
-    axs[2, 2].legend()
-    figh.suptitle(explabel, fontsize=14)
-    figh.show()
-#%%
 visualize_factorModel(AllStat, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor)
 #%% Visualization Development zone
 figh, axs = plt.subplots(3, NF+1, squeeze=False, figsize=[13.5, 9])
@@ -350,35 +369,9 @@ axs[2, 3].set_title("All: After NL Fit corr %.3f"%(AllStat.cc_aft_all))
 axs[2, 2].legend()
 figh.suptitle(explabel, fontsize=14)
 figh.show()
-#%%
+
 
 #%%
-def summarize_tab(tab):
-    validmsk = ~((tab.Animal == "Alfa") & (tab.Expi == 10))
-    print("FactTsr cc: %.3f" % (tab[validmsk].reg_cc.mean()))
-    for sfx in ["_manif", "_all", "_allref"]:
-        print("For %s: cc before fit %.3f cc after fit %.3f cc norm after fit %.3f"%(sfx[1:], 
-            tab[validmsk]["cc_bef"+sfx].mean(), tab[validmsk]["cc_aft"+sfx].mean(), tab[validmsk]["cc_aft_norm"+sfx].mean()))
-
-# exptab = pd.DataFrame(ExpStat_col)
-# predtab = pd.DataFrame(PredStat_col)
-# facttab = pd.DataFrame(FactStat_col)
-# tab = pd.concat((exptab, predtab, facttab), axis=1)
-tab = pd.DataFrame(AllStat_col)
-tab.to_csv(join(sumdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))
-print("%s Layer %s rectify_mode %s border %d Nfact %d"%(netname, layer, rect_mode, bdr, NF))
-summarize_tab(tab)
-#%%
-from scipy.stats import ttest_rel, ttest_ind
-os.listdir(sumdir)
-
-#%%
-# varnm = "cc_bef"; colorvar = "area"; stylevar = "Animal"
-# explab1 = "vgg16-conv4_3"; explab2 = "alexnet-conv3"#"vgg16-conv3_3"
-# tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))
-# tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
-# # tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv'))
-
 def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="area", stylevar="Animal"):
     tab1["area"] = ""
     tab1["area"][tab1.pref_chan <= 32] = "IT"
@@ -506,4 +499,20 @@ with torch.no_grad():
 scorer.clear_hook()
 nlfunc, popt, pcov, scaling, nlpred_score, Stat = fitnl_predscore(pred_score.numpy(), score_vect, savedir=figdir,
                                                             savenm="manif_pred_cov")
-#%%
+#%% Prediction developmentr
+# corr_ceil_mean, corr_ceil_std = resample_correlation(scorecol, trial=100)
+# DR_Wtsr = pad_factor_prod(Hmaps, ccfactor, bdr=bdr)
+# scorer = CorrFeatScore()
+# scorer.register_hooks(net, layer, netname=netname)
+# scorer.register_weights({layer: DR_Wtsr})
+# with torch.no_grad():
+#     pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=loadimg_preprocess,
+#                               batchsize=62,)
+# scorer.clear_hook()
+# nlfunc, popt, pcov, scaling, nlpred_score, PredStat = fitnl_predscore(pred_score.numpy(), score_vect, savedir=figdir,
+#                                                     savenm="manif_pred_cov", suptit=explabel)
+# # Record stats and form population statistics
+# for varnm in ["corr_ceil_mean", "corr_ceil_std"]:
+#     PredStat[varnm] = eval(varnm)
+# PredStat.cc_aft_norm = PredStat.cc_aft / corr_ceil_mean  # prediction normalized by noise ceiling.
+# PredStat.cc_bef_norm = PredStat.cc_bef / corr_ceil_mean
