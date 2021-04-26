@@ -215,6 +215,7 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
         plt.colorbar()
         plt.sca(axs[1, ci])  # show the channel association
         axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
+        axs[1, ci].plot(sorted(ccfactor[:, ci]), alpha=0.25)
     plt.suptitle("%s\nSeparate Factors"%suptit)
     figh.savefig(join(figdir, "%s_dir_factors.png" % (savestr)))
     figh.savefig(join(figdir, "%s_dir_factors.pdf" % (savestr)))
@@ -466,7 +467,7 @@ def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True
     print("Correlation before nonlinearity fitting %.3f; after nonlinearity fitting %.3f"%(cc_bef, cc_aft))
     np.savez(join(savedir, "nlfit_result%s.npz"%savenm), cc_bef=cc_bef, cc_aft=cc_aft, scaling=scaling, popt=popt,
              pcov=pcov, nlpred_score=nlpred_score, obs_score=score_vect)
-    Stat = EasyDict({"cc_bef": cc_bef, "cc_aft": cc_aft})
+    Stat = EasyDict({"cc_bef": cc_bef, "cc_aft": cc_aft, "Nimg": len(score_vect)})
     if show:
         figh = plt.figure(figsize=[8, 4.5])
         plt.subplot(121)
