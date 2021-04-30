@@ -169,6 +169,9 @@ from GAN_utils import upconvGAN
 RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
 RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
 def save_imgtsr(finimgs, figdir:str ="", savestr:str =""):
+    """
+    finimgs: a torch tensor on cpu with shape B,C,H,W. 
+    """
     B = finimgs.shape[0]
     for imgi in range(B):
         ToPILImage()(finimgs[imgi,:,:,:]).save(join(figdir, "%s_%02d.png"%(savestr, imgi)))
@@ -183,7 +186,7 @@ def preprocess(img: torch.tensor):
 
 
 def corr_visualize(scorer, CNNnet, preprocess, layername,
-    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
     savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
     """  """
     scorer.mode = score_mode
@@ -226,12 +229,15 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
         plt.show()
     if saveimg:
         os.makedirs(join(figdir, "img"), exist_ok=True)
-        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        if saveImgN is None:
+            save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        else:
+            save_imgtsr(finimgs[:saveImgN,:,:,:], figdir=join(figdir, "img"), savestr="%s"%(savestr))
     return finimgs, mtg, score_traj
 
 
 def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
-    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
     savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
     """ Visualize the features carried by the scorer.  """
     scorer.mode = score_mode
@@ -276,7 +282,10 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
         plt.show()
     if saveimg:
         os.makedirs(join(figdir, "img"), exist_ok=True)
-        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        if saveImgN is None:
+            save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        else:
+            save_imgtsr(finimgs[:saveImgN,:,:,:], figdir=join(figdir, "img"), savestr="%s"%(savestr))
     return finimgs, mtg, score_traj
 
 #%%
