@@ -73,27 +73,36 @@ def show_img(img):
     plt.show()
 
 
-def rectify_tsr(Ttsr: np.ndarray, mode="abs", thr=(-5, 5)):
+def rectify_tsr(cctsr: np.ndarray, mode="abs", thr=(-5, 5), Ttsr: np.ndarray=None):
     """ Rectify tensor to prep for NMF """
     if mode is "pos":
-        Ttsr_pp = np.clip(Ttsr, 0, None)
+        cctsr_pp = np.clip(cctsr, 0, None)
     elif mode is "abs":
-        Ttsr_pp = np.abs(Ttsr)
+        cctsr_pp = np.abs(cctsr)
     elif mode is "thresh":
+        thr = list(thr)
         if thr[0] is None: thr[0] = - np.inf
         if thr[1] is None: thr[1] =   np.inf
-        Ttsr_pp = Ttsr.copy()
-        Ttsr_pp[(Ttsr < thr[1]) * (Ttsr > thr[0])] = 0
-        Ttsr_pp = np.abs(Ttsr_pp)
+        cctsr_pp = cctsr.copy()
+        cctsr_pp[(cctsr < thr[1]) * (cctsr > thr[0])] = 0
+        # cctsr_pp = np.abs(cctsr_pp)
+    elif mode is "Tthresh":
+        thr = list(thr)
+        if thr[0] is None: thr[0] = - np.inf
+        if thr[1] is None: thr[1] =   np.inf
+        maskTsr = (Ttsr > thr[0]) * (Ttsr < thr[1])
+        cctsr_pp = cctsr.copy()
+        cctsr_pp[maskTsr] = 0
+        # ctsr_pp = np.abs(cctsr_pp)
     elif mode is "none":
-        Ttsr_pp = Ttsr
+        cctsr_pp = cctsr
     else:
         raise ValueError
-    return Ttsr_pp
+    return cctsr_pp
 
 
 def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", solver="cd",
-                figdir="", savestr="", suptit=""):
+                figdir="", savestr="", suptit="", show=True):
     """ Factorize the T tensor using NMF, compute the corresponding features for cctsr """
     C, H, W = Ttsr_pp.shape
     if bdr == 0:
@@ -126,7 +135,8 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
     plt.title("channel merged")
     plt.savefig(join(figdir, "%s_factor_merged.png" % (savestr))) # Indirect factorize
     plt.savefig(join(figdir, "%s_factor_merged.pdf" % (savestr)))
-    plt.show()
+    if show: plt.show()
+    else: plt.close()
     # Visualize maps and their associated channel vector
     [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0])
     for ci in range(Hmaps.shape[2]):
@@ -144,7 +154,8 @@ def tsr_factorize(Ttsr_pp: np.ndarray, cctsr: np.ndarray, bdr=2, Nfactor=3, init
     plt.suptitle("%s Separate Factors"%suptit)
     figh.savefig(join(figdir, "%s_factors.png" % (savestr)))
     figh.savefig(join(figdir, "%s_factors.pdf" % (savestr)))
-    plt.show()
+    if show: plt.show()
+    else: plt.close()
     Stat = EasyDict()
     for varnm in ["reg_cc", "fact_norms", "exp_var", "C", "H", "W", "bdr", "Nfactor", "init", "solver"]:
         Stat[varnm] = eval(varnm)
@@ -156,8 +167,9 @@ def posneg_sep(tsr: np.ndarray, axis=0):
     return np.concatenate((np.clip(tsr, 0, None), -np.clip(tsr, None, 0)), axis=axis)
 
 
-def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", solver="cd",
-                figdir="", savestr="", suptit=""):
+def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3,
+                init="nndsvda", solver="cd", l1_ratio=0, alpha=0, beta_loss="frobenius",
+                figdir="", savestr="", suptit="", show=True):
     """ Factorize the cc tensor using NMF directly
     If any entries of cctsr is negative, it will use `posneg_sep` to create an augmented matrix with only positive entries.
     Then use NMF on that matrix. This process simulates the one sided NNMF. 
@@ -174,7 +186,7 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
     else:
         sep_flag = False
         posccmat = ccmat
-    nmfsolver = NMF(n_components=Nfactor, init=init, solver=solver)  # mu
+    nmfsolver = NMF(n_components=Nfactor, init=init, solver=solver, l1_ratio=l1_ratio, alpha=alpha, beta_loss=beta_loss)  # mu
     Hmat = nmfsolver.fit_transform(posccmat.T)
     Hmaps = Hmat.reshape([H-2*bdr, W-2*bdr, Nfactor])
     CCcompon = nmfsolver.components_  # potentially augmented CC components
@@ -206,7 +218,8 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
     plt.title("%s\nchannel merged"%suptit)
     plt.savefig(join(figdir, "%s_dir_factor_merged.png" % (savestr))) # direct factorize
     plt.savefig(join(figdir, "%s_dir_factor_merged.pdf" % (savestr)))
-    plt.show()
+    if show: plt.show()
+    else: plt.close()
     # Visualize maps and their associated channel vector
     [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0], squeeze=False)
     for ci in range(Hmaps.shape[2]):
@@ -221,7 +234,8 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3, init="nndsvda", so
     plt.suptitle("%s\nSeparate Factors"%suptit)
     figh.savefig(join(figdir, "%s_dir_factors.png" % (savestr)))
     figh.savefig(join(figdir, "%s_dir_factors.pdf" % (savestr)))
-    plt.show()
+    if show: plt.show()
+    else: plt.close()
     Stat = EasyDict()
     for varnm in ["exp_var", "reg_cc", "fact_norms", "exp_var", "C", "H", "W", "bdr", "Nfactor", "init", "solver"]:
         Stat[varnm] = eval(varnm)
@@ -486,9 +500,9 @@ def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True
         plt.ylabel("Original Scores")
         plt.title("After Fitting corr %.3f"%(cc_aft))
         plt.suptitle(suptit+" score cmp")
-        plt.show()
         figh.savefig(join(savedir, "nlfit_vis_%s.png"%savenm))
         figh.savefig(join(savedir, "nlfit_vis_%s.pdf"%savenm))
+        plt.show()
     return nlfunc, popt, pcov, scaling, nlpred_score, Stat
 
 

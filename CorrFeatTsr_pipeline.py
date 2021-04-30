@@ -9,6 +9,7 @@
 from scipy.io import loadmat
 from skimage.io import imread, imread_collection
 from os.path import join
+import os
 from glob import glob
 import numpy as np
 from tqdm import tqdm
@@ -100,7 +101,45 @@ for Expi in range(1, len(EStats)+1):
     figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, "EM_sgtr%s"%expsuffix, titstr, figdir=figdir)
     featFetcher.clear_hook()
 
-#%%
+#%% Final Experiment Pipeline for ResNet50
+ckpt_path = r"E:\Cluster_Backup\torch"
+netname = "resnet50"
+net = models.resnet50(pretrained=True)
+net.requires_grad_(False).cuda()
+# net.load_state_dict(torch.load(join(ckpt_path, "imagenet_linf_8_pure.pt")))
+featnet = net
+figdir = join("S:\corrFeatTsr", "resnet_summary")
+os.makedirs(figdir, exist_ok=True)
+expsuffix = "_nobdr_resnet"
+layers2plot = ["layer1", "layer2", "layer3", "layer4", ]
+for Animal in ["Alfa", "Beto"]:
+    MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
+    EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
+    ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
+    for Expi in range(1, len(EStats)+1):
+        imgsize = EStats[Expi-1].evol.imgsize
+        imgpos = EStats[Expi-1].evol.imgpos
+        pref_chan = EStats[Expi-1].evol.pref_chan
+        imgpix = int(imgsize * 40)
+        titstr = "Driver Chan %d, %.1f deg [%s]"%(pref_chan, imgsize, tuple(imgpos))
+        featFetcher = Corr_Feat_Machine()
+        featFetcher.register_hooks(net, ["layer1", "layer2", "layer3", "layer4", ], netname=netname)
+        featFetcher.init_corr()
+        # Load Evol data and fit
+        score_vect, imgfullpath_vect = load_score_mat(EStats, MStats, Expi, "Evol", wdws=[(50, 200)], stimdrive="S")
+        Corr_Feat_pipeline(featnet, featFetcher, score_vect, imgfullpath_vect,
+            lambda x:loadimg_preprocess(x, borderblur=True, imgpix=imgpix), online_compute=True,
+            batchsize=121, savedir=ccdir, savenm="%s_Exp%d_Evol%s" % (Animal, Expi, expsuffix), )
+        figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, "Evol%s"%expsuffix, titstr, figdir=figdir)
+        # Load Manifold data and fit
+        scorecol_M, imgfullpath_vect_M = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50,200)], stimdrive="S")
+        Corr_Feat_pipeline(featnet, featFetcher, scorecol_M, imgfullpath_vect_M,
+               lambda x: loadimg_preprocess(x, borderblur=True, imgpix=imgpix), online_compute=True,
+           batchsize=121, savedir=ccdir, savenm="%s_Exp%d_EM%s" % (Animal, Expi, expsuffix), )
+        figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, "EM_sgtr%s"%expsuffix, titstr, figdir=figdir)
+        featFetcher.clear_hook()
+
+#%% Final Experiment Pipeline for ResNet50 Robust
 ckpt_path = r"E:\Cluster_Backup\torch"
 net = models.resnet50(pretrained=True)
 net.requires_grad_(False).cuda()
