@@ -91,6 +91,7 @@ def rectify_tsr(cctsr: np.ndarray, mode="abs", thr=(-5, 5), Ttsr: np.ndarray=Non
         if thr[0] is None: thr[0] = - np.inf
         if thr[1] is None: thr[1] =   np.inf
         maskTsr = (Ttsr > thr[0]) * (Ttsr < thr[1])
+        print("Sparsity after T threshold %.3f"%((~maskTsr).sum() / np.prod(maskTsr.shape)))
         cctsr_pp = cctsr.copy()
         cctsr_pp[maskTsr] = 0
         # ctsr_pp = np.abs(cctsr_pp)
