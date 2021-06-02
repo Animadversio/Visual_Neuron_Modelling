@@ -11,6 +11,7 @@ Specifically, it provides functions that visualize a feature vector / tensor in 
 
 #%%
 import os
+from sys import platform
 from os.path import join
 import numpy as np
 from scipy.io import loadmat
@@ -28,8 +29,22 @@ from torch import nn
 from torchvision import models
 from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage
-ckpt_dir = r"E:\Cluster_Backup\torch"
 
+if platform == "linux":  # CHPC cluster
+    ckpt_dir = "/scratch/binxu.wang/torch"
+else:
+    if os.environ['COMPUTERNAME'] == 'DESKTOP-9DDE2RH':  # PonceLab-Desktop 3
+        ckpt_dir = r"E:\Cluster_Backup\torch"
+    elif os.environ['COMPUTERNAME'] == 'DESKTOP-MENSD6S':  # Home_WorkStation
+        ckpt_dir = r"E:\Cluster_Backup\torch"
+    # elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2C':  # PonceLab-Desktop Victoria
+    #     ckpt_dir = r"E:\Cluster_Backup\torch"
+    # elif os.environ['COMPUTERNAME'] == 'DESKTOP-9LH02U9':  # Home_WorkStation Victoria
+    #     ckpt_dir = r"E:\Cluster_Backup\torch"
+    elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2B': # Alfa rig monkey computer
+        ckpt_dir = r"C:\Users\Ponce lab\Documents\Python\torch_nets"
+    else:
+        ckpt_dir = r"E:\Cluster_Backup\torch"
 
 def load_featnet(netname: str):
     if netname == "alexnet":
