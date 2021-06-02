@@ -128,7 +128,7 @@ def nlfit_merged_dataset(pred_score_col:list, score_vect_col:list, scorecol_col:
 
 
 def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, savestr="", figdir="", show=True,
-                          fact_protos=None, tsr_proto=None):
+                          fact_protos=None, tsr_proto=None, bdr=0):
     if Hmaps is None: NF = 0
     else: NF = Hmaps.shape[2]
     ncol = max(4, NF+1)
@@ -147,7 +147,8 @@ def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, save
     axs[1, 0].axis("off")
     for ci in range(NF):
         plt.sca(axs[0, 1+ci])
-        im = axs[0, 1+ci].imshow(Hmaps[:, :, ci])
+        Hmap_pad = np.pad(Hmaps[:, :, ci], [bdr, bdr],mode="constant",constant_values=np.nan)
+        im = axs[0, 1+ci].imshow(Hmap_pad)
         axs[0, 1+ci].axis("off")
         figh.colorbar(im)
         axs[1, 1+ci].plot(ccfactor[:, ci], alpha=0.5)
@@ -208,9 +209,12 @@ G.requires_grad_(False)
 # featnet, net = load_featnet(netname)
 #%%
 visualize_proto = True
+featvis_mode = "corr"
+save_data = True
+
 showfig = False
-# netname = "vgg16";layer = "conv5_3";exp_suffix = "_nobdr"
-# netname = "alexnet"; layer = "conv5"; exp_suffix = "_nobdr_alex"
+# netname = "vgg16"; layer = "conv3_3"; exp_suffix = "_nobdr"
+# netname = "alexnet"; layer = "conv4"; exp_suffix = "_nobdr_alex"
 netname = "resnet50_linf8";layer = "layer3";exp_suffix = "_nobdr_res-robust"
 # netname = "resnet50";layer = "layer3";exp_suffix = "_nobdr_resnet"
 bdr = 1; NF = 3
@@ -231,7 +235,11 @@ if alpha > 0:
 if beta_loss=="kullback-leibler":
     rectstr += "_KL"
 
-expdir = join(exproot, "%s-%s_NF%d_bdr%d_%s_%s" % (netname, layer, NF, bdr, rectstr, exp_suffix))
+featvis_str = ""
+if visualize_proto and featvis_mode!="corr":
+    featvis_str = "_"+featvis_mode
+
+expdir = join(exproot, "%s-%s_NF%d_bdr%d_%s_%s%s" % (netname, layer, NF, bdr, rectstr, exp_suffix, featvis_str))
 os.makedirs(expdir, exist_ok=True)
 featnet, net = load_featnet(netname)
 AllStat_col = []
@@ -296,7 +304,7 @@ for Animal in ["Alfa", "Beto"]:
         scorecol_evoref  , _            = load_score_mat(EStats, MStats, Expi, "EvolRef_sgtr", wdws=[(50, 200)], stimdrive="S")
         pred_scr_evoref, nlpred_scr_evoref, nlfunc, PredStat_evoref = predict_fit_dataset(DR_Wtsr, imgfp_evoref, score_vect_evoref, scorecol_evoref, net, layer, \
                 netname, featnet, imgloader=loadimg_preprocess, batchsize=62, figdir=figdir, savenm="evoref_pred_cov", suptit=explabel+" evoref", show=showfig)
-
+        # Do nl fit on more than one image set predicted by linear model.
         [pred_scr_all, nlpred_scr_all, score_vect_all, nlfunc_all, PredStat_all] = nlfit_merged_dataset([pred_scr_manif, pred_scr_gab, pred_scr_pasu, pred_scr_evoref], 
                              [score_vect_manif, score_vect_gab, score_vect_pasu, score_vect_evoref],
                              [scorecol_manif, scorecol_gab, scorecol_pasu, scorecol_evoref], 
@@ -314,7 +322,7 @@ for Animal in ["Alfa", "Beto"]:
         for varnm in ["Animal", "Expi", "pref_chan", "area", "imgsize", "imgpos"]:
             ExpStat[varnm] = eval(varnm)
 
-        PredData = EasyDict()
+        PredData = EasyDict() # linear, nonlinear predictions and real scores for these. 
         for varnm in ["pred_scr_manif", "nlpred_scr_manif", "score_vect_manif",   "pred_scr_gab", "nlpred_scr_gab", "score_vect_gab", 
             "pred_scr_pasu", "nlpred_scr_pasu", "score_vect_pasu",   "pred_scr_evoref", "nlpred_scr_evoref", "score_vect_evoref", 
             "pred_scr_all", "nlpred_scr_all", "score_vect_all",  "pred_scr_allref", "nlpred_scr_allref", "score_vect_allref",
@@ -333,25 +341,31 @@ for Animal in ["Alfa", "Beto"]:
         # visualize prototypes
         if visualize_proto:
             factimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname=netname,
-                         score_mode="corr", featnet=featnet, bdr=bdr, Bsize=5, saveImgN=1,
+                         score_mode=featvis_mode, featnet=featnet, bdr=bdr, Bsize=5, saveImgN=1,
                          figdir=expdir, savestr="corr", imshow=False, saveimg=False, show_featmap=False)
             tsrimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname,
-                          score_mode="corr", featnet=featnet, Bsize=5, saveImgN=1, bdr=bdr, figdir=expdir, savestr="corr",
-                          saveimg=False, )
+                          score_mode=featvis_mode, featnet=featnet, Bsize=5, saveImgN=1, bdr=bdr, figdir=expdir, savestr="corr",
+                          saveimg=False, imshow=False)
             fact_protos = [factimgs[0, :, :, :].permute([1, 2, 0]).numpy() for factimgs in factimgs_col]
             tsr_proto = tsrimgs[0, :, :, :].permute([1, 2, 0]).numpy()
             figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
-                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=fact_protos, tsr_proto=tsr_proto)
+                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=fact_protos, tsr_proto=tsr_proto, bdr=bdr)
         else:
+            fact_protos, tsr_proto = None, None
             figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
-                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=None, tsr_proto=None)
+                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=None, tsr_proto=None, bdr=bdr)
+        if save_data:
+            saveDict = EasyDict(netname=netname, layer=layer, exp_suffix=exp_suffix, bdr=bdr, explabel=explabel,
+                                rect_mode=rect_mode, thresh=thresh, featvis_mode=featvis_mode,
+                                Hmaps=Hmaps, ccfactor=ccfactor, tsr_proto=tsr_proto, fact_protos=fact_protos,
+                                BestImg=ReprStats[Expi - 1].Manif.BestImg, PredData=PredData, AllStat=AllStat,)
+            pkl.dump(saveDict, open(join(expdir, "%s_Exp%02d_factors.pkl"%(Animal, Expi)), "wb"))
 
 tab = pd.DataFrame(AllStat_col)
 tab.to_csv(join(sumdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))
 tab.to_csv(join(expdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))
 pkl.dump(PredData_col, open(join(expdir, "PredictionData.pkl"), "wb"))
-
-#%
+#%%
 def summarize_tab(tab, verbose=False):
     validmsk = ~((tab.Animal == "Alfa") & (tab.Expi == 10))
     print("FactTsr cc: %.3f  ExpVar: %.3f" % (tab[validmsk].reg_cc.mean(), tab[validmsk].exp_var.mean()))
@@ -373,10 +387,30 @@ summarize_tab(tab)
 # facttab = pd.DataFrame(FactStat_col)
 # tab = pd.concat((exptab, predtab, facttab), axis=1)
 #%%
+from lucent.optvis.transform import standard_transforms, pad, jitter, random_scale, random_rotate, jitter
+tfms = [
+    jitter(8),
+    # random_scale([1 + (i - 5) / 50.0 for i in range(11)]),
+    random_rotate(list(range(-10, 11)) + 5 * [0]),
+    jitter(4),
+]
+#%%
+saveDict = pkl.load(open(join(expdir,"Alfa_Exp03_factors.pkl"),'rb'))
+ccfactor = saveDict.ccfactor
+Hmaps = saveDict.Hmaps
+netname = saveDict.netname
+layer = saveDict.layer
+featvis_mode = saveDict.featvis_mode
+bdr = saveDict.bdr
+featnet, net = load_featnet(netname)
+tsrimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname, tfms=tfms,#[],
+              score_mode=featvis_mode, featnet=featnet, Bsize=5, saveImgN=1, bdr=bdr, figdir=expdir, savestr="corr",
+              saveimg=False, imshow=True)
+
+#%% Analyze and summarize statistics
 from scipy.stats import ttest_rel, ttest_ind
 os.listdir(sumdir)
 
-#%%
 # varnm = "cc_bef"; colorvar = "area"; stylevar = "Animal"
 # explab1 = "vgg16-conv4_3"; explab2 = "alexnet-conv3"#"vgg16-conv3_3"
 # tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))

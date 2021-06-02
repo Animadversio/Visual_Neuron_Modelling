@@ -75,18 +75,18 @@ def show_img(img):
 
 def rectify_tsr(cctsr: np.ndarray, mode="abs", thr=(-5, 5), Ttsr: np.ndarray=None):
     """ Rectify tensor to prep for NMF """
-    if mode is "pos":
+    if mode == "pos":
         cctsr_pp = np.clip(cctsr, 0, None)
-    elif mode is "abs":
+    elif mode == "abs":
         cctsr_pp = np.abs(cctsr)
-    elif mode is "thresh":
+    elif mode == "thresh":
         thr = list(thr)
         if thr[0] is None: thr[0] = - np.inf
         if thr[1] is None: thr[1] =   np.inf
         cctsr_pp = cctsr.copy()
         cctsr_pp[(cctsr < thr[1]) * (cctsr > thr[0])] = 0
         # cctsr_pp = np.abs(cctsr_pp)
-    elif mode is "Tthresh":
+    elif mode == "Tthresh":
         thr = list(thr)
         if thr[0] is None: thr[0] = - np.inf
         if thr[1] is None: thr[1] =   np.inf
@@ -95,7 +95,7 @@ def rectify_tsr(cctsr: np.ndarray, mode="abs", thr=(-5, 5), Ttsr: np.ndarray=Non
         cctsr_pp = cctsr.copy()
         cctsr_pp[maskTsr] = 0
         # ctsr_pp = np.abs(cctsr_pp)
-    elif mode is "none":
+    elif mode == "none":
         cctsr_pp = cctsr
     else:
         raise ValueError
@@ -243,7 +243,7 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3,
     return Hmat, Hmaps, ccfactor, Stat
 
 
-def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
+def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None, tfms=[],
         preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0,
         imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """Feature vector over the whole map"""
@@ -255,11 +255,11 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
         fact_W = torch.from_numpy(ccfactor[:, ci]).reshape([1,-1,1,1])
         scorer.register_weights({layer: fact_W})
         if G is None:
-            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer, tfms=tfms, 
              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
         else:
-            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, tfms=tfms, 
              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
@@ -271,7 +271,7 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
     return finimgs_col, mtg_col, score_traj_col
 
 
-def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2, tfms=[],
               preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0, pntsize=2,
               imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """ Feature vector at the centor of the map as spatial mask. """
@@ -287,11 +287,11 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
         fact_Chtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci+1], sp_mask))
         scorer.register_weights({layer: fact_Chtsr})
         if G is None:
-            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer, tfms=tfms, 
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
         else:
-            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, tfms=tfms, 
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
@@ -303,7 +303,7 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
     return finimgs_col, mtg_col, score_traj_col
 
 
-def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2, tfms=[],
              preprocess=preprocess, lr=0.1, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0,
              imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """ Feature vector at the centor of the map as spatial mask. """
@@ -317,11 +317,11 @@ def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
         if show_featmap or imshow: show_img(padded_mask[:, :, 0])
         scorer.register_weights({layer: fact_Wtsr})
         if G is None:
-            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer, tfms=tfms, 
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
         else:
-            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+            finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, tfms=tfms, 
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
@@ -333,7 +333,7 @@ def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
     return finimgs_col, mtg_col, score_traj_col
 
 
-def vis_feattsr(cctsr, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+def vis_feattsr(cctsr, net, G, layer, netname="alexnet", featnet=None, bdr=2, tfms=[],
                 preprocess=preprocess, lr=0.05, MAXSTEP=150, use_adam=True, Bsize=5, saveImgN=None, langevin_eps=0.03,
                 imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
     if featnet is None: featnet = net.features
@@ -343,18 +343,18 @@ def vis_feattsr(cctsr, net, G, layer, netname="alexnet", featnet=None, bdr=2,
     scorer.register_hooks(net, layer, netname=netname)
     scorer.register_weights({layer: cctsr})
     if G is None:
-        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer, tfms=tfms, 
           lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
           imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="tsr_%s%s-%s"%(savestr, netname, layer))
     else:
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, tfms=tfms, 
           lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
           imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="tsr_%s%s-%s"%(savestr, netname, layer))
     scorer.clear_hook()
     return finimgs, mtg, score_traj
 
 
-def vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2,
+def vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname="alexnet", featnet=None, bdr=2, tfms=[],
                 preprocess=preprocess, lr=0.05, MAXSTEP=150, use_adam=True, Bsize=5, saveImgN=None, langevin_eps=0.03,
                 imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
     """ Visualize the factorized feature tensor """
@@ -365,11 +365,11 @@ def vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname="alexnet", featne
     scorer.register_hooks(net, layer, netname=netname)
     scorer.register_weights({layer: DR_Wtsr})
     if G is None:
-        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
+        finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer, tfms=tfms, 
           lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
           imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="facttsr_%s%s-%s"%(savestr, netname, layer))
     else:
-        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer,
+        finimgs, mtg, score_traj = corr_GAN_visualize(G, scorer, featnet, preprocess, layername=layer, tfms=tfms, 
             lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
             imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="facttsr_%s%s-%s"%(savestr, netname, layer))
     scorer.clear_hook()
