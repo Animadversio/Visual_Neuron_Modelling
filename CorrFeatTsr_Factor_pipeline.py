@@ -1,3 +1,5 @@
+# SUPER DUPER well written formulated pipeline for in silico factorization for experiments
+# Super useful for hyper parameter tuning. Comfortable! SHUFU
 from featvis_lib import load_featnet, rectify_tsr, tsr_factorize, tsr_posneg_factorize, vis_feattsr, vis_featvec, \
     vis_feattsr_factor, vis_featvec_point, vis_featvec_wmaps, \
     fitnl_predscore, score_images, CorrFeatScore, preprocess, loadimg_preprocess, show_img, pad_factor_prod
@@ -125,11 +127,19 @@ def nlfit_merged_dataset(pred_score_col:list, score_vect_col:list, scorecol_col:
     return pred_score_all, nlpred_score_all, score_vect_all, nlfunc, PredStat
 
 
-def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, savestr="", figdir="", show=True):
+def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, savestr="", figdir="", show=True,
+                          fact_protos=None, tsr_proto=None):
     if Hmaps is None: NF = 0
     else: NF = Hmaps.shape[2]
     ncol = max(4, NF+1)
-    figh, axs = plt.subplots(3, ncol, squeeze=False, figsize=[ncol*4, 9])
+    if fact_protos is not None and tsr_proto is not None:
+        show_proto = True
+        r_pad = 1
+    else:
+        show_proto = False
+        r_pad = 0
+    nrow = r_pad+3
+    figh, axs = plt.subplots(nrow, ncol, squeeze=False, figsize=[ncol*4, 3*nrow])
     axs[0, 0].imshow(protoimg)
     axs[0, 0].axis("off")
 
@@ -144,30 +154,38 @@ def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, save
         axs[1, 1+ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.')
         axs[1, 1+ci].plot(sorted(ccfactor[:, ci]), alpha=0.3)
         axs[1, 1+ci].set_xlim([0, ccfactor.shape[0]+1])
+    
+    if show_proto:
+        axs[2, 0].imshow(tsr_proto)
+        axs[2, 0].axis("off")
+        for ci in range(NF):
+            axs[2, 1+ci].imshow(fact_protos[ci])
+            axs[2, 1+ci].axis("off")
 
-    axs[2, 0].scatter(PD.pred_scr_manif, PD.nlpred_scr_manif, alpha=0.3, color='k', s=9)
-    axs[2, 0].scatter(PD.pred_scr_manif, PD.score_vect_manif, alpha=0.5, label="manif", s=25)
-    axs[2, 1].scatter(PD.nlpred_scr_manif, PD.score_vect_manif, alpha=0.5, s=25)
-    axs[2, 1].set_aspect(1, adjustable='datalim')
-    axs[2, 0].set_ylabel("Observed Scores")
-    axs[2, 0].set_xlabel("Factor Linear Pred")
-    axs[2, 1].set_xlabel("Factor Pred + nl")
-    axs[2, 0].set_title("Manif: Before NL Fit corr %.3f"%(AllStat.cc_bef_manif))
-    axs[2, 1].set_title("Manif: After NL Fit corr %.3f"%(AllStat.cc_aft_manif))
-    axs[2, 0].legend()
+    
+    axs[r_pad+2, 0].scatter(PD.pred_scr_manif, PD.nlpred_scr_manif, alpha=0.3, color='k', s=9)
+    axs[r_pad+2, 0].scatter(PD.pred_scr_manif, PD.score_vect_manif, alpha=0.5, label="manif", s=25)
+    axs[r_pad+2, 1].scatter(PD.nlpred_scr_manif, PD.score_vect_manif, alpha=0.5, s=25)
+    axs[r_pad+2, 1].set_aspect(1, adjustable='datalim')
+    axs[r_pad+2, 0].set_ylabel("Observed Scores")
+    axs[r_pad+2, 0].set_xlabel("Factor Linear Pred")
+    axs[r_pad+2, 1].set_xlabel("Factor Pred + nl")
+    axs[r_pad+2, 0].set_title("Manif: Before NL Fit corr %.3f"%(AllStat.cc_bef_manif))
+    axs[r_pad+2, 1].set_title("Manif: After NL Fit corr %.3f"%(AllStat.cc_aft_manif))
+    axs[r_pad+2, 0].legend()
 
     imglabel = AllStat.Nimg_manif*["manif"] + AllStat.Nimg_gabor*["gabor"] + \
                AllStat.Nimg_pasu*["pasu"] + AllStat.Nimg_evoref*["evoref"]
-    axs[2, 2].scatter(PD.pred_scr_all, PD.nlpred_scr_all, alpha=0.3, color='k', s=9)
-    sns.scatterplot(x=PD.pred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 2])
-    sns.scatterplot(x=PD.nlpred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[2, 3])
-    axs[2, 3].set_aspect(1, adjustable='datalim')
-    axs[2, 2].set_ylabel("Observed Scores")
-    axs[2, 2].set_xlabel("Factor Linear Pred")
-    axs[2, 3].set_xlabel("Factor Pred + nl")
-    axs[2, 2].set_title("All: Before NL Fit corr %.3f"%(AllStat.cc_bef_all))
-    axs[2, 3].set_title("All: After NL Fit corr %.3f"%(AllStat.cc_aft_all))
-    axs[2, 2].legend()
+    axs[r_pad+2, 2].scatter(PD.pred_scr_all, PD.nlpred_scr_all, alpha=0.3, color='k', s=9)
+    sns.scatterplot(x=PD.pred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[r_pad+2, 2])
+    sns.scatterplot(x=PD.nlpred_scr_all, y=PD.score_vect_all, hue=imglabel, alpha=0.5, ax=axs[r_pad+2, 3])
+    axs[r_pad+2, 3].set_aspect(1, adjustable='datalim')
+    axs[r_pad+2, 2].set_ylabel("Observed Scores")
+    axs[r_pad+2, 2].set_xlabel("Factor Linear Pred")
+    axs[r_pad+2, 3].set_xlabel("Factor Pred + nl")
+    axs[r_pad+2, 2].set_title("All: Before NL Fit corr %.3f"%(AllStat.cc_bef_all))
+    axs[r_pad+2, 3].set_title("All: After NL Fit corr %.3f"%(AllStat.cc_aft_all))
+    axs[r_pad+2, 2].legend()
     figh.suptitle(explabel, fontsize=14)
     figh.savefig(join(figdir, "%s_summary.png"%savestr))
     figh.savefig(join(figdir, "%s_summary.pdf"%savestr))
@@ -178,6 +196,7 @@ def visualize_factorModel(AllStat, PD, protoimg, Hmaps, ccfactor, explabel, save
         figh.close()
         return None
 
+# Set up path for experiments
 figroot = "E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis"
 sumdir = join(figroot, "summary")
 exproot = join(figroot, "models")
@@ -188,16 +207,19 @@ G = upconvGAN("fc6").cuda()
 G.requires_grad_(False)
 # featnet, net = load_featnet(netname)
 #%%
+visualize_proto = True
 showfig = False
 # netname = "vgg16";layer = "conv5_3";exp_suffix = "_nobdr"
 # netname = "alexnet"; layer = "conv5"; exp_suffix = "_nobdr_alex"
 netname = "resnet50_linf8";layer = "layer3";exp_suffix = "_nobdr_res-robust"
 # netname = "resnet50";layer = "layer3";exp_suffix = "_nobdr_resnet"
 bdr = 1; NF = 3
-# init = "nndsvda"; solver="cd"; l1_ratio=0; alpha=0; beta_loss="frobenius"
-init="nndsvd"; solver="mu"; l1_ratio=0.8; alpha=0.005; beta_loss="kullback-leibler"#"frobenius"##
+init = "nndsvda"; solver="cd"; l1_ratio=0; alpha=0; beta_loss="frobenius" # default
+# init="nndsvd"; solver="mu"; l1_ratio=0.8; alpha=0.005; beta_loss="kullback-leibler"#"frobenius"##
 # rect_mode = "pos"; thresh = (None, None)
 rect_mode = "Tthresh"; thresh = (None, 3)
+
+# Record hyper parameters in name string
 rectstr = rect_mode
 if "thresh" in rect_mode:
     if thresh[0] is not None: rectstr += "_%d"%thresh[0]
@@ -256,7 +278,7 @@ for Animal in ["Alfa", "Beto"]:
         # prediction for different image sets.
         DR_Wtsr = pad_factor_prod(Hmaps, ccfactor, bdr=bdr)
         score_vect_manif, imgfp_manif = load_score_mat(EStats, MStats, Expi, "Manif_avg", wdws=[(50, 200)], stimdrive="S")
-        scorecol_manif  , _                = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50, 200)], stimdrive="S")
+        scorecol_manif  , _           = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50, 200)], stimdrive="S")
         pred_scr_manif, nlpred_scr_manif, nlfunc, PredStat_manif = predict_fit_dataset(DR_Wtsr, imgfp_manif, score_vect_manif, scorecol_manif, net, layer, \
                 netname, featnet, imgloader=loadimg_preprocess, batchsize=62, figdir=figdir, savenm="manif_pred_cov", suptit=explabel+" manif", show=showfig)
 
@@ -308,8 +330,21 @@ for Animal in ["Alfa", "Beto"]:
                         add_suffix(PredStat_allref, "_allref"),])
         AllStat_col.append(AllStat)
         PredData_col.append(PredData)
-        figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
-            savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir)
+        # visualize prototypes
+        if visualize_proto:
+            factimgs_col, mtg_col, score_traj_col = vis_featvec_wmaps(ccfactor, Hmaps, net, G, layer, netname=netname,
+                         score_mode="corr", featnet=featnet, bdr=bdr, Bsize=5, saveImgN=1,
+                         figdir=expdir, savestr="corr", imshow=False, saveimg=False, show_featmap=False)
+            tsrimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, netname=netname,
+                          score_mode="corr", featnet=featnet, Bsize=5, saveImgN=1, bdr=bdr, figdir=expdir, savestr="corr",
+                          saveimg=False, )
+            fact_protos = [factimgs[0, :, :, :].permute([1, 2, 0]).numpy() for factimgs in factimgs_col]
+            tsr_proto = tsrimgs[0, :, :, :].permute([1, 2, 0]).numpy()
+            figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
+                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=fact_protos, tsr_proto=tsr_proto)
+        else:
+            figh = visualize_factorModel(AllStat, PredData, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor, explabel, \
+                savestr="%s_Exp%02d"%(Animal, Expi), figdir=expdir, fact_protos=None, tsr_proto=None)
 
 tab = pd.DataFrame(AllStat_col)
 tab.to_csv(join(sumdir, "Both_pred_stats_%s-%s_%s_bdr%d_NF%d.csv"%(netname, layer, rect_mode, bdr, NF)))

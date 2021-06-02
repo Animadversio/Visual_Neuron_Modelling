@@ -260,7 +260,7 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3,
 
 def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
         preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0,
-        imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
+        imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """Feature vector over the whole map"""
     if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
@@ -278,7 +278,7 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
              lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
              imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_full_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
-                        figdir=figdir, savestr="fac%d_full_%s%s"%(ci, savestr, netname))
+             figdir=figdir, savestr="fac%d_full_%s%s"%(ci, savestr, netname), saveimg=saveimg, showimg=show_featmap)
         finimgs_col.append(finimgs)
         mtg_col.append(mtg)
         score_traj_col.append(score_traj)
@@ -288,7 +288,7 @@ def vis_featvec(ccfactor, net, G, layer, netname="alexnet", featnet=None,
 
 def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2,
               preprocess=preprocess, lr=0.05, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0, pntsize=2,
-              imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
+              imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """ Feature vector at the centor of the map as spatial mask. """
     if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
@@ -310,7 +310,7 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_cntpnt_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
-                        figdir=figdir, savestr="fac%d_cntpnt_%s%s"%(ci, savestr, netname))
+                figdir=figdir, savestr="fac%d_cntpnt_%s%s"%(ci, savestr, netname), saveimg=saveimg, showimg=show_featmap)
         finimgs_col.append(finimgs)
         mtg_col.append(mtg)
         score_traj_col.append(score_traj)
@@ -320,7 +320,7 @@ def vis_featvec_point(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
 
 def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, netname="alexnet", featnet=None, bdr=2,
              preprocess=preprocess, lr=0.1, MAXSTEP=100, use_adam=True, Bsize=4, saveImgN=None, langevin_eps=0,
-             imshow=True, verbose=False, savestr="", figdir="", saveimg=False, score_mode="dot"):
+             imshow=True, verbose=False, savestr="", figdir="", saveimg=False, show_featmap=True, score_mode="dot"):
     """ Feature vector at the centor of the map as spatial mask. """
     if featnet is None: featnet = net.features
     scorer = CorrFeatScore()
@@ -329,7 +329,7 @@ def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
     for ci in range(ccfactor.shape[1]):
         padded_mask = np.pad(Hmaps[:, :, ci:ci + 1], ((bdr, bdr), (bdr, bdr), (0, 0)), mode="constant")
         fact_Wtsr = torch.from_numpy(np.einsum("ij,klj->ikl", ccfactor[:, ci:ci + 1], padded_mask))
-        show_img(padded_mask[:, :, 0])
+        if show_featmap or imshow: show_img(padded_mask[:, :, 0])
         scorer.register_weights({layer: fact_Wtsr})
         if G is None:
             finimgs, mtg, score_traj = corr_visualize(scorer, featnet, preprocess, layername=layer,
@@ -340,7 +340,7 @@ def vis_featvec_wmaps(ccfactor: np.ndarray, Hmaps: np.ndarray, net, G, layer, ne
               lr=lr, MAXSTEP=MAXSTEP, use_adam=use_adam, Bsize=Bsize, langevin_eps=langevin_eps, score_mode=score_mode, saveImgN=saveImgN,
               imshow=imshow, saveimg=saveimg, verbose=verbose, figdir=figdir, savestr="fac%d_map_%s%s-%s"%(ci, savestr, netname, layer))
         vis_featmap_corr(scorer, featnet, finimgs, ccfactor[:, ci], layer, maptype="cov", imgscores=score_traj[-1, :],
-                        figdir=figdir, savestr="fac%d_map_%s%s"%(ci, savestr, netname))
+                figdir=figdir, savestr="fac%d_map_%s%s"%(ci, savestr, netname), saveimg=saveimg, showimg=show_featmap)
         finimgs_col.append(finimgs)
         mtg_col.append(mtg)
         score_traj_col.append(score_traj)
@@ -398,7 +398,7 @@ def pad_factor_prod(Hmaps, ccfactor, bdr=0):
 
 
 def vis_featmap_corr(scorer: CorrFeatScore, featnet: nn.Module, finimgs: torch.tensor, targvect: np.ndarray, layer: str,
-                     maptype="cov", imgscores=[], figdir="", savestr=""):
+                     maptype="cov", imgscores=[], figdir="", savestr="", saveimg=True, showimg=True):
     """Given a feature vec, the feature map as projecting the feat tensor onto this vector."""
     featnet(finimgs.cuda())
     act_feattsr = scorer.feat_tsr[layer].cpu()
@@ -423,9 +423,13 @@ def vis_featmap_corr(scorer: CorrFeatScore, featnet: nn.Module, finimgs: torch.t
             plt.axis("off")
             Mcol.append(M)
         align_clim(Mcol)
-        figh.savefig(join(figdir, "%s_%s_img_%smap.png" % (savestr, layer, maptype)))
-        figh.savefig(join(figdir, "%s_%s_img_%smap.pdf" % (savestr, layer, maptype)))
-        plt.show()
+        if saveimg:
+            figh.savefig(join(figdir, "%s_%s_img_%smap.png" % (savestr, layer, maptype)))
+            figh.savefig(join(figdir, "%s_%s_img_%smap.pdf" % (savestr, layer, maptype)))
+        if showimg:
+            figh.show()
+        else:
+            plt.close(figh)
     return cov_map, corr_map
 
 #% This Section contains functions that do predictions for the images.

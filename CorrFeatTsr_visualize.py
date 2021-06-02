@@ -44,9 +44,9 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                          'conv5_1', 'conv5_1_relu',
                          'conv5_2', 'conv5_2_relu',
                          'conv5_3', 'conv5_3_relu', 'pool5',
-                         'fc1', 'fc1_relu', 'dropout1',
-                         'fc2', 'fc2_relu', 'dropout2',
-                         'fc3'],
+                         'fc6', 'fc6_relu', 'dropout6',
+                         'fc7', 'fc7_relu', 'dropout7',
+                         'fc8'],
                 "densenet121":['conv1',
                                  'bn1',
                                  'bn1_relu',
@@ -63,6 +63,7 @@ class CorrFeatScore:
     def __init__(self):
         self.feat_tsr = {}
         self.weight_tsr = {}
+        self.mask_tsr = {}
         self.weight_N = {}
         self.hooks = []
         self.layers = []
@@ -87,7 +88,12 @@ class CorrFeatScore:
         for layer in layers:
             if netname in ["vgg16","alexnet"]:
                 layer_idx = layername_dict[netname].index(layer)
-                targmodule = net.features[layer_idx]
+                if layer_idx > 30:
+                    targmodule = net.classifier[layer_idx-31]
+                elif layer_idx < 30:
+                    targmodule = net.features[layer_idx]
+                else:
+                    targmodule = net.avgpool
             elif "resnet50" in netname: # in ["resnet50", "resnet50_linf"]:
                 targmodule = net.__getattr__(layer)
             else:
@@ -97,11 +103,14 @@ class CorrFeatScore:
             self.layers.append(layer)
         self.netname = netname
 
-    def register_weights(self, weight_dict):
+    def register_weights(self, weight_dict, mask_dict=None):
         for layer, weight in weight_dict.items():
             self.weight_tsr[layer] = torch.tensor(weight).float().cuda()
             self.weight_tsr[layer].requires_grad_(False)
             self.weight_N[layer] = (weight > 0).sum()
+            if mask_dict is not None and layer in mask_dict:
+                mask = mask_dict[layer]
+                self.mask_tsr[layer] = torch.tensor(mask, requires_grad=False).bool().cuda()
 
     def corrfeat_score(self, layers=None, Nnorm=True):
         if layers is None: layers = self.layers
@@ -109,15 +118,40 @@ class CorrFeatScore:
             layers = [layers]
         for layer in layers:
             acttsr = self.feat_tsr[layer]
+            if acttsr.ndim == 2: # fc layers
+                sumdims = [1]
+            elif acttsr.ndim == 4: # conv layers
+                sumdims = [1, 2, 3]
+            else:
+                raise ValueError
             if self.mode is "dot":
-                score = (self.weight_tsr[layer] * acttsr).sum(dim=[1, 2, 3])
+                score = (self.weight_tsr[layer] * acttsr).sum(dim=sumdims)
                 if Nnorm: score = score / self.weight_N[layer]
+            elif self.mode is "MSE":
+                score = (self.weight_tsr[layer] - acttsr).pow(2).mean(dim=sumdims)
+            elif self.mode is "MSEmask":
+                score = torch.sum(self.mask_tsr[layer]*(self.weight_tsr[layer] - acttsr).pow(2), dim=sumdims) / \
+                        self.mask_tsr[layer].count_nonzero().float()#(~torch.isnan(self.weight_tsr[layer])).float().sum()
+            elif self.mode is "L1":
+                score = (self.weight_tsr[layer] - acttsr).abs().mean(dim=sumdims)
+            elif self.mode is "L1mask":
+                score = torch.sum(self.mask_tsr[layer]*(self.weight_tsr[layer] - acttsr).abs(), dim=sumdims) / \
+                        self.mask_tsr[layer].count_nonzero().float()
             elif self.mode is "corr":
                 w_mean = self.weight_tsr[layer].mean()
                 w_std = self.weight_tsr[layer].std()
-                act_mean = acttsr.mean(dim=(1, 2, 3), keepdim=True)
-                act_std = acttsr.std(dim=(1, 2, 3), keepdim=True)
-                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=[1, 2, 3])
+                act_mean = acttsr.mean(dim=sumdims, keepdim=True)
+                act_std = acttsr.std(dim=sumdims, keepdim=True)
+                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=sumdims)
+            elif self.mode is "corrmask":
+                msk = self.mask_tsr[layer]
+                weightvec = self.weight_tsr[layer][msk]
+                w_mean = weightvec.mean()
+                w_std = weightvec.std()
+                actmat = acttsr[:, msk]
+                act_mean = actmat.mean(dim=1, keepdim=True)
+                act_std = actmat.std(dim=1, keepdim=True)
+                score = ((weightvec - w_mean) / w_std * (actmat - act_mean) / act_std).mean(dim=1)
             else:
                 raise NotImplementedError("Check `mode` of `scorer` ")
             self.scores[layer] = score
@@ -187,9 +221,10 @@ def preprocess(img: torch.tensor):
 
 def corr_visualize(scorer, CNNnet, preprocess, layername,
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
+    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot", maximize=True):
     """  """
     scorer.mode = score_mode
+    score_sgn = -1 if maximize else 1
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()
     x.requires_grad_(True)
     optimizer = Adam([x], lr=lr) if use_adam else SGD([x], lr=lr)
@@ -199,7 +234,7 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
         ppx = preprocess(x)
         optimizer.zero_grad()
         CNNnet(ppx)
-        score = -scorer.corrfeat_score(layername)
+        score = score_sgn * scorer.corrfeat_score(layername)
         score.sum().backward()
         x.grad = x.norm() / x.grad.norm() * x.grad
         optimizer.step()
@@ -208,14 +243,17 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
             # if > 0 then add noise to become Langevin gradient descent jump minimum
             x.data.add_(torch.randn(x.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in -score)))
-        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in score_sgn * score)))
+        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
 
-    final_score = -score.detach().clone().cpu()
+    final_score = score_sgn * score.detach().clone().cpu()
     del score
     torch.cuda.empty_cache()
-    idx = torch.argsort(final_score, descending=True)
-    score_traj = -torch.stack(tuple(score_traj))[:, idx]
+    if maximize:
+        idx = torch.argsort(final_score, descending=True)
+    else:
+        idx = torch.argsort(final_score, descending=False)
+    score_traj = score_sgn * torch.stack(tuple(score_traj))[:, idx]
     finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
     mtg = ToPILImage()(make_grid(finimgs))
@@ -238,9 +276,10 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
 
 def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
+    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot", maximize=True):
     """ Visualize the features carried by the scorer.  """
     scorer.mode = score_mode
+    score_sgn = -1 if maximize else 1
     z = 0.5*torch.randn([Bsize, 4096]).cuda()
     z.requires_grad_(True)
     optimizer = Adam([z], lr=lr) if use_adam else SGD([z], lr=lr)
@@ -252,7 +291,7 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
         ppx = F.interpolate(ppx, [imgfullpix, imgfullpix], mode="bilinear", align_corners=True)
         optimizer.zero_grad()
         CNNnet(ppx)
-        score = -scorer.corrfeat_score(layername)
+        score = score_sgn * scorer.corrfeat_score(layername)
         score.sum().backward()
         z.grad = z.norm(dim=1, keepdim=True) / z.grad.norm(dim=1, keepdim=True) * z.grad  # this is a gradient normalizing step 
         optimizer.step()
@@ -261,14 +300,17 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
             # if > 0 then add noise to become Langevin gradient descent jump minimum
             z.data.add_(torch.randn(z.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
-        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
+        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
 
-    final_score = -score.detach().clone().cpu()
+    final_score = score_sgn * score.detach().clone().cpu()
     del score
     torch.cuda.empty_cache()
-    idx = torch.argsort(final_score, descending=True)
-    score_traj = -torch.stack(tuple(score_traj))[:, idx]
+    if maximize:
+        idx = torch.argsort(final_score, descending=True)
+    else:
+        idx = torch.argsort(final_score, descending=False)
+    score_traj = score_sgn * torch.stack(tuple(score_traj))[:, idx]
     finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
     mtg = ToPILImage()(make_grid(finimgs))
@@ -286,6 +328,8 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
             save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
         else:
             save_imgtsr(finimgs[:saveImgN,:,:,:], figdir=join(figdir, "img"), savestr="%s"%(savestr))
+            mtg_sel = ToPILImage()(make_grid(finimgs[:saveImgN,:,:,:]))
+            mtg_sel.save(join(figdir, "%s_G_%s_best.png" % (savestr, layername)))
     return finimgs, mtg, score_traj
 
 #%%
