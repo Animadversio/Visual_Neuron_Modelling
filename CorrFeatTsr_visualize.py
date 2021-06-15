@@ -1,4 +1,11 @@
-"""Visualize the correlated units for a given evolution."""
+"""Visualize the correlated units for a given evolution.
+Basic building blocks of a feature visualization
+    CorrFeatScore: a Scorer or objective function based on neural network
+    corr_visualize: Visualize feature based on pixel parametrization
+    corr_GAN_visualize: Visualize feature based on GAN parametrization
+All these components are heavily used in higher level api in featvis_lib
+
+"""
 # Alias the disks for usage
 # !subst N: E:\Network_Data_Sync
 # !subst S: E:\Network_Data_Sync
@@ -378,7 +385,7 @@ if __name__ == "__main__":
     Animal = "Beto"
     Expi = 11
     # for Expi in range(27,46+1):
-    D = np.load(join(r"S:\corrFeatTsr","%s_Exp%d_EM_corrTsr.npz"%(Animal,Expi)), allow_pickle=True)
+    D = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_EM_corrTsr.npz" % (Animal, Expi)), allow_pickle=True)
     scorer = CorrFeatScore()
     scorer.load_from_npy(D, VGG, netname="vgg16", thresh=4, layers=[])
     img = ReprStats[Expi-1].Evol.BestBlockAvgImg

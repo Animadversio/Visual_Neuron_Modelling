@@ -1,5 +1,5 @@
-"""This library provides higher level wrapper over CorrFeatTsr_visualize
-Specifically, it provides functions that visualize a feature vector / tensor in a given layer 
+"""This library provides higher level api over CorrFeatTsr_visualize
+Specifically, it provides functions that visualize a feature vector / tensor in a given layer of CNN
 """
 #%%
 # %load_ext autoreload
