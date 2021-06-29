@@ -1,11 +1,14 @@
-"""A library of functions to do correlation feature analysis
+"""A library of functions to do correlation feature analysis,
+esp. the first step, compute the correlation tensor online. 
+
 Core machinery:
-    Corr_Feat_Machine, to compute correlation online
+    Corr_Feat_Machine: a class designed to compute correlation tensors online
 Visualizing masks from `Corr_Feat_Machine`
     visual_cctsr
     visualize_cctsr_embed
 Full pipeline
-    ???, for given network, list of layers, list of pairs of input and output, do correlation feature analysis
+    Corr_Feat_pipeline: for given network, list of layers, list of pairs of input and output, do correlation feature analysis
+
 """
 from os.path import join
 import matplotlib.pylab as plt
@@ -189,8 +192,8 @@ class Corr_Feat_Machine:
 
 
 #%%
-def visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, Titstr, figdir=""):
-    """
+def visualize_cctsr(featFetcher: Corr_Feat_Machine, layers2plot: list, ReprStats, Expi, Animal, ExpType, Titstr, figdir=""):
+    """ Given a `Corr_Feat_Machine` show the tensors in the different layers of it. 
     Demo
     ExpType = "EM_cmb"
     layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
@@ -230,8 +233,9 @@ def visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, 
     figh.savefig(join(figdir, "%s_Exp%d_%s_corrTsr_vis.pdf" % (Animal, Expi, ExpType)))
     return figh
 
+
 def visualize_cctsr_embed(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, Titstr, figdir="", imgpix=120, fullimgsz=224, borderblur=True):
-    """
+    """ Same as `visualize_cctsr` but embed the images in a frame
     Demo
     ExpType = "EM_cmb"
     layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
@@ -289,7 +293,9 @@ def visualize_cctsr_embed(featFetcher, layers2plot, ReprStats, Expi, Animal, Exp
 
 #%%
 from tqdm import tqdm
-def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_func, online_compute=True, batchsize=121, savedir="S:\corrFeatTsr", savenm="Evol"):
+def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_func, 
+        online_compute=True, batchsize=121, savedir="S:\corrFeatTsr", savenm="Evol"):
+    """The pipeline to compute Correlation Tensor for a bunch of images and reponses.""" 
     imgN = len(imgfullpath_vect)
     if type(score_vect) is not list:
         score_tsr = torch.tensor(score_vect).float()  # torchify the score vector
@@ -360,6 +366,7 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
         return final_tsr
     else:
         return input_tsr
+
 
 def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=True):
     """Prepare the input image batch!

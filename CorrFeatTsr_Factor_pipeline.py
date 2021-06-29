@@ -5,6 +5,7 @@ SUPER DUPER well written formulated pipeline for factorizations of Monkey A,B ma
 from featvis_lib import load_featnet, rectify_tsr, tsr_factorize, tsr_posneg_factorize, vis_feattsr, vis_featvec, \
     vis_feattsr_factor, vis_featvec_point, vis_featvec_wmaps, \
     fitnl_predscore, score_images, CorrFeatScore, preprocess, loadimg_preprocess, show_img, pad_factor_prod
+from CorrFeatTsr_utils import area_mapping, add_suffix, merge_dicts, multichan2rgb
 import os
 from os.path import join
 import pickle as pkl
@@ -22,37 +23,6 @@ mpl.rcParams['axes.spines.top'] = False
 # os.system(r'subst N: E:\Network_Data_Sync') # do this if at home.
 os.system(r'subst S: E:\Network_Data_Sync')
 os.system(r'subst O: "E:\OneDrive - Washington University in St. Louis"')
-def area_mapping(num):
-    if num <= 32: return "IT"
-    elif num <= 48 and num >= 33: return "V1"
-    elif num >= 49: return "V4"
-
-
-def add_suffix(dict: dict, sfx: str=""):
-    newdict = EasyDict()
-    for k, v in dict.items():
-        newdict[k + sfx] = v
-    return newdict
-
-
-def merge_dicts(dicts: list):
-    newdict = EasyDict()
-    for D in dicts:
-        newdict.update(D)
-    return newdict
-
-
-def multichan2rgb(Hmaps):
-    """Util function to summarize multi channel array to show as rgb"""
-    if Hmaps.ndim == 2:
-        Hmaps_plot = np.repeat(Hmaps[:,:,np.newaxis], 3, axis=2)
-    elif Hmaps.shape[2] < 3:
-        Hmaps_plot = np.concatenate((Hmaps, np.zeros((*Hmaps.shape[:2], 3 - Hmaps.shape[2]))), axis=2)
-    else:
-        Hmaps_plot = Hmaps[:, :, :3]
-    Hmaps_plot = Hmaps_plot/Hmaps_plot.max()
-    return Hmaps_plot
-
 
 def resample_correlation(scorecol, trial=100):
     """ Compute noise ceiling for correlating with a collection of noisy data"""
@@ -93,7 +63,7 @@ def predict_fit_dataset(DR_Wtsr, imgfullpath_vect, score_vect, scorecol, net, la
     nlfunc, popt, pcov, scaling, nlpred_score, PredStat = fitnl_predscore(pred_score, score_vect,
                       savedir=figdir, savenm=savenm, suptit=suptit, show=show)
     # Record stats and form population statistics
-    if scorecol is not None:
+    if scorecol is not None: # compute the noise ceiling by resample from the trials. 
         corr_ceil_mean, corr_ceil_std = resample_correlation(scorecol, trial=100)
         for varnm in ["corr_ceil_mean", "corr_ceil_std"]:
             PredStat[varnm] = eval(varnm)
@@ -368,8 +338,8 @@ for NF in [1, 2, 5, 7, 9]:
                      bdr=bdr, Nfactor=NF, init=init, solver=solver, l1_ratio=l1_ratio, alpha=alpha, beta_loss=beta_loss,
                      figdir=figdir, savestr="%s-%scov" % (netname, layer), suptit=explabel, show=showfig,)
 
-            # prediction for different image sets.
             DR_Wtsr = pad_factor_prod(Hmaps, ccfactor, bdr=bdr)
+            # prediction for different image sets.
             score_vect_manif, imgfp_manif = load_score_mat(EStats, MStats, Expi, "Manif_avg", wdws=[(50, 200)], stimdrive="S")
             scorecol_manif  , _           = load_score_mat(EStats, MStats, Expi, "Manif_sgtr", wdws=[(50, 200)], stimdrive="S")
             pred_scr_manif, nlpred_scr_manif, nlfunc, PredStat_manif = predict_fit_dataset(DR_Wtsr, imgfp_manif, score_vect_manif, scorecol_manif, net, layer, \
@@ -603,7 +573,10 @@ summarize_tab(tab)
 # predtab = pd.DataFrame(PredStat_col)
 # facttab = pd.DataFrame(FactStat_col)
 # tab = pd.concat((exptab, predtab, facttab), axis=1)
-#%%
+#%% 
+
+
+#%% Test transform robustness to feature visualization. 
 from lucent.optvis.transform import standard_transforms, pad, jitter, random_scale, random_rotate, jitter
 tfms = [
     jitter(8),
@@ -631,8 +604,10 @@ tsrimgs, mtg, score_traj = vis_feattsr_factor(ccfactor, Hmaps, net, G, layer, ne
 # tab1 = pd.read_csv(join(sumdir, "Both_pred_stats_vgg16-conv4_3_none_bdr1_NF3.csv"))
 # tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_alexnet-conv3_none_bdr1_NF3.csv'))
 # # tab2 = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_none_bdr3_NF3.csv'))
-#%%
+
+#%% #################################################################
 #%% Visualization development zone
+#%% #################################################################
 visualize_factorModel(AllStat, ReprStats[Expi - 1].Manif.BestImg, Hmaps, ccfactor)
 #%% Visualization Development zone
 figh, axs = plt.subplots(3, NF+1, squeeze=False, figsize=[13.5, 9])

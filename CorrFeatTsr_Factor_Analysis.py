@@ -14,6 +14,7 @@ from easydict import EasyDict
 import pandas as pd
 from scipy.stats import ttest_rel, ttest_ind, pearsonr
 from scipy.stats import f_oneway
+from scipy.stats import pearsonr, spearmanr
 import torch
 import seaborn as sns
 import matplotlib as mpl
@@ -33,8 +34,7 @@ csv_list = glob(join(exproot,"*","*.csv",), recursive=False)
 
 # tab = pd.read_csv(join(sumdir, 'Both_pred_stats_vgg16-conv3_3_bdr3_NF3.csv'))
 # summarize_tab(tab)
-#%% Handy statistical functions
-from scipy.stats import pearsonr, spearmanr
+#%% Handy statistical functions for plotting
 areanummap = lambda A: {"V1": 1, "V4": 2, "IT": 3}[A]
 def testProgression(tab, varnm, msk=None):
     validmsk = ~((tab.Animal == "Alfa") & (tab.Expi == 10)) & (~tab[varnm].isna())
@@ -325,7 +325,7 @@ pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef_all", colorvar="are
 pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_aft_all", colorvar="area", stylevar="Animal")
 #%% Plot scatter for statistics of performance for Full model
 tab = pd.read_csv(r'O:\corrFeatTsr_FactorVis\models\resnet50_linf8-layer3_Full_bdr0_Tthresh_3__nobdr_res-robust' \
- '\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr0_full.csv')
+                '\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr0_full.csv')
 explab = "resnet50_linf8-layer3_Tthresh_bdr0_full"
 pred_stripe(tab, explab, varnm="cc_bef_all", kind="swarm")
 pred_stripe(tab, explab, varnm="cc_bef_norm_all", kind="swarm")
@@ -345,7 +345,10 @@ pred_stripe(tab, explab, varnm="cc_bef_norm_manif", kind="swarm")
 pred_stripe(tab, explab, varnm="cc_aft_norm_manif", kind="swarm")
 
 
+
+#%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #%% Obsolete development zone
+#%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 nf_csv_list = {
     "NF1": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF1_bdr1_Tthresh_3__nobdr_resnet\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF1.csv',
     "NF2": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF2_bdr1_Tthresh_3__nobdr_resnet\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF2.csv',

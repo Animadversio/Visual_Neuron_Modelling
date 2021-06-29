@@ -1,4 +1,4 @@
-"""This library provides higher level api over CorrFeatTsr_visualize
+"""This library provides higher level api over CorrFeatTsr_visualize_lib
 Specifically, it provides functions that visualize a feature vector / tensor in a given layer of CNN
 """
 #%%
@@ -16,13 +16,13 @@ from os.path import join
 import numpy as np
 from scipy.io import loadmat
 from sklearn.decomposition import NMF
-import matplotlib 
+import matplotlib as mpl
 import matplotlib.pylab as plt
-matplotlib.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['pdf.fonttype'] = 42
 from numpy.linalg import norm as npnorm
 from easydict import EasyDict
 from data_loader import mat_path, load_score_mat, loadmat
-from CorrFeatTsr_visualize import CorrFeatScore, corr_GAN_visualize, corr_visualize, preprocess, save_imgtsr
+from CorrFeatTsr_visualize_lib import CorrFeatScore, corr_GAN_visualize, corr_visualize, preprocess, save_imgtsr
 from GAN_utils import upconvGAN
 import torch
 from torch import nn
@@ -69,7 +69,7 @@ def load_featnet(netname: str):
     return featnet, net
 
 
-def align_clim(Mcol: matplotlib.image.AxesImage):
+def align_clim(Mcol: mpl.image.AxesImage):
     """Util function to align the color axes of a bunch of imshow maps."""
     cmin = np.inf
     cmax = -np.inf
@@ -431,100 +431,6 @@ def vis_featmap_corr(scorer: CorrFeatScore, featnet: nn.Module, finimgs: torch.t
         else:
             plt.close(figh)
     return cov_map, corr_map
-
-#% This Section contains functions that do predictions for the images.
-from tqdm import tqdm
-from scipy.optimize import curve_fit
-from CorrFeatTsr_lib import loadimg_preprocess
-def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preprocess, batchsize=70,):
-    """
-    :param featNet: a feature processing network nn.Module.
-    :param scorer: CorrFeatScore
-    :param layername: str, the layer you are generating the score from
-    :param imgfps: a list of full paths to the images.
-    :param imgloader: image loader, a function taking a list to full path as input and returns a preprocessed image
-        tensor.
-    :param batchsize: batch size in processing images. Usually 120 is fine with a 6gb gpu.
-    :return:
-        score_all: tensor of returned scores.
-
-    :Example:
-        scorer = CorrFeatScore()
-        scorer.register_hooks(net, layer, netname=netname)
-        scorer.register_weights({layer: DR_Wtsr})
-        pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=loadimg_preprocess, batchsize=80,)
-        scorer.clear_hook()
-        nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect)
-
-    """
-    imgN = len(imgfps)
-    csr = 0
-    pbar = tqdm(total=imgN)
-    score_all = []
-    while csr < imgN:
-        cend = min(csr + batchsize, imgN)
-        input_tsr = imgloader(imgfps[csr:cend])  # imgpix=120, fullimgsz=224, borderblur=True
-        with torch.no_grad():
-            part_tsr = featNet(input_tsr.cuda()).cpu()
-            score = scorer.corrfeat_score(layername)
-        score_all.append(score.detach().clone().cpu())
-        pbar.update(cend - csr)
-        csr = cend
-    pbar.close()
-    score_all = torch.cat(tuple(score_all), dim=0)
-    return score_all
-
-
-def softplus(x, a, b, thr):
-    """ A soft smooth version of ReLU"""
-    return a * np.logaddexp(0, x - thr) + b
-
-
-def fitnl_predscore(pred_score_np: np.ndarray, score_vect: np.ndarray, show=True, savedir="", savenm="", suptit=""):
-    """Given a linearly predicted score and target score, fit a nonlinearity to minimize error.
-    TODO: Maybe need cross fit and prediction.
-    :param pred_score_np: predicted scores to be transformed. np.array
-    :param score_vect: target scores. np.array
-    :Example
-        nlfunc, popt, pcov, scaling, nlpred_score, Stat = fitnl_predscore(pred_score.numpy(), score_vect)
-    """
-    # first normalize scale of pred score
-    scaling = 1/pred_score_np.std()*score_vect.std()
-    pred_score_np_norm = pred_score_np * scaling
-    popt, pcov = curve_fit(softplus, pred_score_np_norm, score_vect, \
-          p0=[1, min(score_vect), np.median(pred_score_np_norm)], \
-          bounds=([0, min(score_vect) - 10, min(pred_score_np_norm)-10], 
-                  [np.inf, max(score_vect), max(pred_score_np_norm)]))
-    print("NL parameters: amp %.1e baseline %.1e thresh %.1e" % tuple(popt))
-    nlpred_score = softplus(pred_score_np_norm, *popt)
-    nlfunc = lambda predicted: softplus(predicted * scaling, *popt)
-    cc_bef = np.corrcoef(score_vect, pred_score_np)[0, 1]
-    cc_aft = np.corrcoef(score_vect, nlpred_score)[0, 1]
-    print("Correlation before nonlinearity fitting %.3f; after nonlinearity fitting %.3f"%(cc_bef, cc_aft))
-    np.savez(join(savedir, "nlfit_result%s.npz"%savenm), cc_bef=cc_bef, cc_aft=cc_aft, scaling=scaling, popt=popt,
-             pcov=pcov, nlpred_score=nlpred_score, obs_score=score_vect)
-    Stat = EasyDict({"cc_bef": cc_bef, "cc_aft": cc_aft, "Nimg": len(score_vect)})
-    if show:
-        figh = plt.figure(figsize=[8, 4.5])
-        plt.subplot(121)
-        plt.scatter(pred_score_np, nlpred_score, alpha=0.5, label="fitting")
-        plt.scatter(pred_score_np, score_vect, alpha=0.5, label="data")
-        plt.xlabel("Factor Prediction")
-        plt.ylabel("Original Scores")
-        plt.title("Before Fitting corr %.3f"%(cc_bef))
-        plt.legend()
-        plt.subplot(122)
-        plt.scatter(nlpred_score, score_vect, alpha=0.5)
-        plt.axis("image")
-        plt.xlabel("Factor Prediction + nl")
-        plt.ylabel("Original Scores")
-        plt.title("After Fitting corr %.3f"%(cc_aft))
-        plt.suptitle(suptit+" score cmp")
-        figh.savefig(join(savedir, "nlfit_vis_%s.png"%savenm))
-        figh.savefig(join(savedir, "nlfit_vis_%s.pdf"%savenm))
-        plt.show()
-    return nlfunc, popt, pcov, scaling, nlpred_score, Stat
-
 
 #%%
 if __name__ == "__main__":

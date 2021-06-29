@@ -1,4 +1,4 @@
-from CorrFeatTsr_visualize import CorrFeatScore, corr_visualize, corr_GAN_visualize, preprocess, ToPILImage, make_grid
+from CorrFeatTsr_visualize_lib import CorrFeatScore, corr_visualize, corr_GAN_visualize, preprocess, ToPILImage, make_grid
 from torchvision.transforms import ToTensor
 from tqdm import tqdm
 import os

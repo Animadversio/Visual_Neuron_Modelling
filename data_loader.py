@@ -1,4 +1,7 @@
-"""Newer API for data loading. for older one see load_neural_data"""
+"""
+Newer API for data loading for Evolution, Manifold dataset. 
+for older one see load_neural_data
+"""
 import os
 from os.path import join
 import shutil
@@ -25,7 +28,9 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
         ExpType containing `avg` will return scores in `score_vect` format 
 
     :param wdws: a list of tuple. Not implemented yet. used to specify the window to define the scores. 
-    
+    :param stimdrive: "N", "S" etc. the drive to load the stimuli images. 
+
+
     :return: Two types of return format. 
         score_vect, imgfullpath_vect
         or 

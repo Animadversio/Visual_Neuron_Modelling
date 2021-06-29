@@ -1,4 +1,6 @@
-"""Many random utils functions useful for Correlated Feature Visualization Analysis etc."""
+"""
+Many small utils functions useful for Correlated Feature Visualization Analysis etc.
+"""
 from easydict import EasyDict
 
 def area_mapping(num):
