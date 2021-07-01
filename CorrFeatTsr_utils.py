@@ -2,6 +2,11 @@
 Many small utils functions useful for Correlated Feature Visualization Analysis etc.
 """
 from easydict import EasyDict
+import numpy as np
+import matplotlib as mpl
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['axes.spines.right'] = False
+mpl.rcParams['axes.spines.top'] = False
 
 def area_mapping(num):
     if num <= 32: return "IT"
