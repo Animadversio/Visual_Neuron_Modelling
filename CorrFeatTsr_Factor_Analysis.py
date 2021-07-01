@@ -1,7 +1,8 @@
 """Post hoc analysis and summary for the CorrFeatTsr analysis"""
 from featvis_lib import load_featnet, rectify_tsr, tsr_factorize, tsr_posneg_factorize, vis_feattsr, vis_featvec, \
     vis_feattsr_factor, vis_featvec_point, vis_featvec_wmaps, \
-    fitnl_predscore, score_images, CorrFeatScore, preprocess, loadimg_preprocess, show_img, pad_factor_prod
+    CorrFeatScore, preprocess, show_img, pad_factor_prod
+from CorrFeatTsr_predict_lib import fitnl_predscore, loadimg_preprocess, score_images
 import os
 from os.path import join
 from glob import glob
@@ -57,12 +58,14 @@ def area_cmp_plot(tab, varnm, targspace="all", tablab="", msk=None, inner="point
     plt.savefig(join(figdir,"%s_model_%s_area_cmp.png"%(varnm, tablab)))
     plt.show()
 
-def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="area", stylevar="Animal", masktab=None):
+def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="area", stylevar="Animal", masktab=None, mask=None):
     """Compare prediction score for 2 models
     Plotting the scatter of prediction accuracy, separated by area and animal.
     """
     if masktab is None:
         masktab = tab1
+    if mask is None:
+        mask = np.ones(tab1.shape[0], dtype=bool)
     masktab["area"] = ""
     masktab["area"][masktab.pref_chan <= 32] = "IT"
     masktab["area"][(masktab.pref_chan <= 48) & (masktab.pref_chan >= 33)] = "V1"
@@ -82,12 +85,15 @@ def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="are
 
 
 def pred_stripe(tab1, explab1, varnm="cc_bef", columnvar="area", colorvar="Animal", masktab=None, kind="strip",
-                alpha=0.6):
+                alpha=0.6, mask=None):
     """Compare prediction score for 2 models
     Plotting the scatter of prediction accuracy, separated by area and animal.
     """
     if masktab is None:
         masktab = tab1
+    if mask is None:
+        mask = np.ones(tab1.shape[0], dtype=bool)
+
     masktab["area"] = ""
     masktab["area"][masktab.pref_chan <= 32] = "IT"
     masktab["area"][(masktab.pref_chan <= 48) & (masktab.pref_chan >= 33)] = "V1"
@@ -112,21 +118,27 @@ def pred_stripe(tab1, explab1, varnm="cc_bef", columnvar="area", colorvar="Anima
     return figh
 
 
-def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", figdir=sumdir):
+def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", figdir=sumdir, expmsk=None):
     sumtab = pd.DataFrame()
     xticks = []
     for lab, tabfn in nf_csv_dict.items():
         tab = pd.read_csv(tabfn)
         sumtab[lab] = tab[statname]
         xticks.append(label2num[lab])
+    if expmsk is None:
+        expmsk = np.ones(tab.shape[0], dtype=bool)
     xticks = np.array(xticks).reshape([-1,1])
     summarymat = np.array(sumtab)
     summarymat_norm = (summarymat / np.abs(summarymat).max(axis=1, keepdims=True))
+    # if expmsk is not None:
+    sumtab = sumtab[expmsk]
+    summarymat = summarymat[expmsk]
+    summarymat_norm = summarymat_norm[expmsk, :]
 
     figh, ax = plt.subplots(1, 3, figsize=[9, 6])
     area_str = ["V1","V4","IT"]
-    msks = [tab.area=="V1", tab.area=="V4", tab.area=="IT"]
-    minormsks = [tab.Animal=="Alfa", tab.Animal=="Beto"]
+    msks = [tab[expmsk].area=="V1", tab[expmsk].area=="V4", tab[expmsk].area=="IT"]
+    minormsks = [tab[expmsk].Animal=="Alfa", tab[expmsk].Animal=="Beto"]
     clrs = ["red", "green", "blue"]
     styles = ["-", "-."]
     for i, (clr, msk) in enumerate(zip(clrs, msks)):
@@ -143,9 +155,10 @@ def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", fig
     # best_NFnum["area"] = tab.area
     sumtab["best_NFnum"] = best_NFnum
     for colnm in ["Animal", "Expi", "area", "pref_chan"]:
-        sumtab[colnm] = tab[colnm]
+        sumtab[colnm] = tab[expmsk][colnm]
     summary = sumtab.groupby("area", sort=False).mean()
     summary_sem = sumtab.groupby("area", sort=False).sem()
+    summary_cnt = sumtab.groupby("area", sort=False).size()
     print("Summarize statistics %s vs Number of factors"%statname)
     print(summary)
     # summary2 = sumtab.groupby(["Animal", "area"], sort=False).mean()
@@ -161,11 +174,13 @@ def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", fig
                   "p=%.1e)" % (modelstr, Fval, F_pval, rval, rpval))
     for i, area in enumerate(area_str):
         ax[i].axvline(summary.best_NFnum[area], C='k', ls=":")
-        ax[i].text(summary.best_NFnum[area], 1.0, '%.2f+-%.2f'%(summary.best_NFnum[area], summary_sem.best_NFnum[area]), rotation=0)
+        ax[i].text(summary.best_NFnum[area], 1.0, '%.2f+-%.2f (N=%d)'%(summary.best_NFnum[area], summary_sem.best_NFnum[area], summary_cnt[area]), rotation=0)
         # ax[i].vlines(sumtab.best_NFnum[msks[i]].to_list(), 0, 1, color='k', ls="-.", alpha=0.1)
     plt.tight_layout()
-    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.png"%(modelstr, statname)))
-    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.pdf"%(modelstr, statname)))
+    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.png"%(modelstr, statname)),
+                bbox_inches='tight')
+    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.pdf"%(modelstr, statname)),
+                bbox_inches='tight')
     plt.show()
     return sumtab, summary, figh
 
@@ -259,7 +274,7 @@ pred_cmp_scatter(tab1, tab2, lab1, lab2, varnm="cc_aft_manif", colorvar="isSucce
 
 #%% Prediction as a function of factor numbers
 #%%
-label2num = {"NF1":1, "NF2":2, "NF3":3, "NF5":5, "NF7":7, "Full":1024, np.nan:np.nan}
+label2num = {"NF1":1, "NF2":2, "NF3":3, "NF5":5, "NF7":7, "NF9":9, "Full":1024, np.nan:np.nan}
 nf_csv_list = \
 {'NF1': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF1_bdr1_Tthresh_3__nobdr\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF1.csv',
  'NF2': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF2_bdr1_Tthresh_3__nobdr\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF2.csv',
@@ -299,6 +314,75 @@ nf_csv_list = {
 }
 sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_all", modelstr="resnet50-layer3")
 sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_all", modelstr="resnet50-layer3")
+
+
+#%% Cross Validated version of prediction
+label2num = {"NF1":1, "NF2":2, "NF3":3, "NF5":5, "NF7":7,  "NF9":9, "Full":1024, np.nan:np.nan}
+valmsk = ~((exptab1.Animal=="Alfa") * (exptab1.Expi==10))
+nf_csv_list = {
+ "NF1":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF1_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF1_CV.csv',
+ "NF2":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF2_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF2_CV.csv',
+ "NF3":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF3_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF3_CV.csv',
+ "NF5":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF5_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF5_CV.csv',
+ "NF7":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF7_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF7_CV.csv',
+ "NF9":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_NF9_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF9_CV.csv',
+ # "Full":'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer3_Full_bdr0_Tthresh_3__nobdr_res-robust'
+ #        '\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr0_full.csv',
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50_robust-layer3_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50_robust-layer3_CV", expmsk=valmsk)
+#%% VGG16
+# sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50_robust-layer3_CV")
+# sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50_robust-layer3_CV")
+#%
+nf_csv_list = {
+ 'NF1': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF1_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF1_CV.csv',
+ 'NF2': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF2_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF2_CV.csv',
+ 'NF3': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF3_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF3_CV.csv',
+ 'NF5': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF5_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF5_CV.csv',
+ 'NF7': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF7_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF7_CV.csv',
+ 'NF9': 'O:\\corrFeatTsr_FactorVis\\models\\vgg16-conv4_3_NF9_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF9_CV.csv',
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="VGG16-conv4_3_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="VGG16-conv4_3_CV", expmsk=valmsk)
+#% Alexnet
+nf_csv_list = {
+"NF1":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF1_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF1_CV.csv',
+"NF2":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF2_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF2_CV.csv',
+"NF3":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF3_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF3_CV.csv',
+"NF5":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF5_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF5_CV.csv',
+"NF7":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF7_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF7_CV.csv',
+"NF9":'O:\\corrFeatTsr_FactorVis\\models\\alexnet-conv4_NF9_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF9_CV.csv',
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="alexnet-conv4_CV",
+                                      expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="alexnet-conv4_CV",
+                                      expmsk=valmsk)
+#% Resnet50
+nf_csv_list = {
+"NF1": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF1_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF1_CV.csv',
+"NF2": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF2_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF2_CV.csv',
+"NF3": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF3_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF3_CV.csv',
+"NF5": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF5_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF5_CV.csv',
+"NF7": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF7_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF7_CV.csv',
+"NF9": 'O:\\corrFeatTsr_FactorVis\\models\\resnet50-layer3_NF9_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF9_CV.csv',
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50-layer3_CV",
+                                      expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50-layer3_CV",
+                                      expmsk=valmsk)
+
+#%%
+
+
+
+
+
+
+
+
+
+
 #%%
 nf_csv_list = {
  'NF1': 'O:\\corrFeatTsr_FactorVis\\models\\resnet50_linf8-layer2_NF1_bdr3_Tthresh_3__nobdr_res-robust\\Both_pred_stats_resnet50_linf8-layer2_Tthresh_bdr3_NF1.csv',
