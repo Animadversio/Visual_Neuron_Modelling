@@ -3,6 +3,7 @@ Many small utils functions useful for Correlated Feature Visualization Analysis 
 """
 from easydict import EasyDict
 import numpy as np
+import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['axes.spines.right'] = False
@@ -38,3 +39,24 @@ def multichan2rgb(Hmaps):
         Hmaps_plot = Hmaps[:, :, :3]
     Hmaps_plot = Hmaps_plot/Hmaps_plot.max()
     return Hmaps_plot
+
+
+def showimg(ax, imgarr, cbar=False, ylabel=None):
+    pcm = ax.imshow(imgarr)
+    ax.set_ylabel(ylabel)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    if cbar:
+        plt.colorbar(pcm, ax=ax)
+    return pcm
+
+
+def off_axes(axs):
+    for ax in axs:
+        ax.axis("off")
