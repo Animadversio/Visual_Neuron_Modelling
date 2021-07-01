@@ -4,7 +4,8 @@ SUPER DUPER well written formulated pipeline for factorizations of Monkey A,B ma
 """
 from featvis_lib import load_featnet, rectify_tsr, tsr_factorize, tsr_posneg_factorize, vis_feattsr, vis_featvec, \
     vis_feattsr_factor, vis_featvec_point, vis_featvec_wmaps, \
-    fitnl_predscore, score_images, CorrFeatScore, preprocess, loadimg_preprocess, show_img, pad_factor_prod
+    CorrFeatScore, preprocess, show_img, pad_factor_prod
+from CorrFeatTsr_predict_lib import fitnl_predscore, score_images, loadimg_preprocess
 from CorrFeatTsr_utils import area_mapping, add_suffix, merge_dicts, multichan2rgb
 import os
 from os.path import join
@@ -23,6 +24,7 @@ mpl.rcParams['axes.spines.top'] = False
 # os.system(r'subst N: E:\Network_Data_Sync') # do this if at home.
 os.system(r'subst S: E:\Network_Data_Sync')
 os.system(r'subst O: "E:\OneDrive - Washington University in St. Louis"')
+os.system(r"subst N: \\storage1.ris.wustl.edu\crponce\Active")
 
 def resample_correlation(scorecol, trial=100):
     """ Compute noise ceiling for correlating with a collection of noisy data"""
@@ -427,7 +429,12 @@ for NF in [1, 2, 5, 7, 9]:
 
 #%% Full tensor prediction
 def tsr_crop_border(tsr, bdr=0):
-    return tsr
+    if bdr==0:
+        return tsr
+    elif bdr > 0:
+        bdrtsr = np.zeros_like(tsr)
+        bdrtsr[:, bdr:-bdr, bdr:-bdr] = tsr[:, bdr:-bdr, bdr:-bdr]
+        return bdrtsr
 
 featvis_mode = "corr"
 visualize_proto = True
