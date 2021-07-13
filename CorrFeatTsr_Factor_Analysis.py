@@ -119,6 +119,11 @@ def pred_stripe(tab1, explab1, varnm="cc_bef", columnvar="area", colorvar="Anima
 
 
 def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", figdir=sumdir, expmsk=None):
+    """Well formed plot function for model performance as a function of factor number
+    Separated by area and animal
+    Report the mean, sem of factor number per area
+    Report the progression statistics
+    """
     sumtab = pd.DataFrame()
     xticks = []
     for lab, tabfn in nf_csv_dict.items():
@@ -156,6 +161,7 @@ def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", fig
     sumtab["best_NFnum"] = best_NFnum
     for colnm in ["Animal", "Expi", "area", "pref_chan"]:
         sumtab[colnm] = tab[expmsk][colnm]
+    # Quick way to get summary statistics for each group
     summary = sumtab.groupby("area", sort=False).mean()
     summary_sem = sumtab.groupby("area", sort=False).sem()
     summary_cnt = sumtab.groupby("area", sort=False).size()

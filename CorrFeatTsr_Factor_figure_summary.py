@@ -51,7 +51,8 @@ for Animal in ["Alfa", "Beto"]:
         struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
 
 modelroot = r"E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis\models"
-#%% Calculate the sparseness ratio and the corresponding correlation value.
+
+#%% Text report: Calculate the sparseness ratio and the corresponding correlation value.
 rect_mode = "Tthresh"; thresh = (None, 3)
 netname = "resnet50_linf8";layer = "layer3";exp_suffix = "_nobdr_res-robust"
 bdr = 1;
@@ -374,7 +375,7 @@ for Animal, Expi in ExpAll[:]:#Explist[:]:
     data.tsr_proto = tsr_proto
     pkl.dump(data, open(join(NFdir, "%s_Exp%02d_factors.pkl" % (Animal, Expi)), 'wb'))
 
-#%% Visualize Experiments and Show Examples.
+#%% Visualize Experiments and Show Examples (Factor model and full model)
 outdir = "O:\Manuscript_Manifold\FigureS4\Examples"
 Explist = [("Beto", 11),
            ("Alfa", 45),
@@ -447,12 +448,134 @@ for Animal, Expi in Explist[:]:
     saveallforms(outdir, "%s_Exp%02d_FullFact_cmp"%(Animal, Expi))
     figh.show()
 
+#%% FigureS4B Factor number comparison
+from CorrFeatTsr_utils import area_mapping
+from scipy.stats import spearmanr, f_oneway
+outdir = r"O:\Manuscript_Manifold\FigureS4B\Examples"
+
+
+def pred_perform_cmp(nf_csv_dict, label2num, statname, modelstr="net-layer", figdir=outdir, expmsk=None):
+    """Well formed plot function for model performance as a function of factor number
+    Separated by area and animal
+    Report the mean, sem of factor number per area
+    Report the progression statistics
+    """
+    sumtab = pd.DataFrame()
+    xticks = []
+    for lab, tabfn in nf_csv_dict.items():
+        tab = pd.read_csv(tabfn)
+        sumtab[lab] = tab[statname]
+        xticks.append(label2num[lab])
+    if expmsk is None:
+        expmsk = np.ones(tab.shape[0], dtype=bool)
+    xticks = np.array(xticks).reshape([-1,1])
+    summarymat = np.array(sumtab)
+    summarymat_norm = (summarymat / np.abs(summarymat).max(axis=1, keepdims=True))
+    # if expmsk is not None:
+    sumtab = sumtab[expmsk] # Note sumtab alread exclude the rows as masked out in sumtab
+    summarymat = summarymat[expmsk]
+    summarymat_norm = summarymat_norm[expmsk, :]
+
+    figh, ax = plt.subplots(1, 3, figsize=[9, 6])
+    area_str = ["V1","V4","IT"]
+    msks = [tab[expmsk].area=="V1", tab[expmsk].area=="V4", tab[expmsk].area=="IT"]
+    minormsks = [tab[expmsk].Animal=="Alfa", tab[expmsk].Animal=="Beto"]
+    clrs = ["red", "green", "blue"]
+    styles = ["-", "-."]
+    for i, (clr, msk) in enumerate(zip(clrs, msks)):
+        for mi, mmsk in enumerate(minormsks):
+            xjit = np.random.randn(1,sum(msk&mmsk))*0.1
+            ax[i].plot(xticks+xjit, summarymat_norm[msk&mmsk,:].T,
+                       alpha=0.5, color=clr, linestyle=styles[mi])
+        ax[i].set_title(area_str[i])
+        ax[i].set_xlabel("Factor Number")
+        ax[i].set_xticks(xticks[:,-1])
+    ax[0].set_ylabel(statname+" norm to max")
+
+    best_NFnum = sumtab.idxmax(axis=1).apply(lambda lab: label2num[lab])
+    # best_NFnum["area"] = tab.area
+    sumtab["best_NFnum"] = best_NFnum
+    for colnm in ["Animal", "Expi", "area", "pref_chan"]:
+        sumtab[colnm] = tab[expmsk][colnm]
+    # Quick way to get summary statistics for each group
+    summary = sumtab.groupby("area", sort=False).mean()
+    summary_sem = sumtab.groupby("area", sort=False).sem()
+    summary_cnt = sumtab.groupby("area", sort=False).size()
+    print("Summarize statistics %s vs Number of factors"%statname)
+    print(summary)
+    # summary2 = sumtab.groupby(["Animal", "area"], sort=False).mean()
+    # print(summary2)
+    valmsk = ~sumtab.best_NFnum.isna()
+    Fval, F_pval = f_oneway(sumtab.best_NFnum[(sumtab.area=="V1")&valmsk], sumtab.best_NFnum[(sumtab.area=="V4")&valmsk], \
+                    sumtab.best_NFnum[(sumtab.area=="IT")&valmsk])
+    
+    areanummap = lambda A: {"V1": 1, "V4": 2, "IT": 3}[A]
+    area_num = sumtab.area.apply(areanummap)
+    rval, rpval = spearmanr(area_num[valmsk], best_NFnum[valmsk])
+    print("Best NF number ~ area, ANOVA F %.2f (p=%.1e)"%(Fval, F_pval))
+    print("Best NF number ~ area, Spearman R %.3f (p=%.1e)"%(rval, rpval))
+    figh.suptitle("%s model prediction as function of NF\nbest factor N ~ area: ANOVA F %.2f (p=%.1e) Spearman R %.3f ("
+                  "p=%.1e)" % (modelstr, Fval, F_pval, rval, rpval))
+    for i, area in enumerate(area_str):
+        ax[i].axvline(summary.best_NFnum[area], C='k', ls=":")
+        ax[i].text(summary.best_NFnum[area], 1.0, '%.2f+-%.2f (N=%d)'%(summary.best_NFnum[area], summary_sem.best_NFnum[area], summary_cnt[area]), rotation=0)
+        # ax[i].vlines(sumtab.best_NFnum[msks[i]].to_list(), 0, 1, color='k', ls="-.", alpha=0.1)
+    plt.tight_layout()
+    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.png"%(modelstr, statname)),
+                bbox_inches='tight')
+    figh.savefig(join(figdir, "NF-modelAccur_area_sep_%s_%s.pdf"%(modelstr, statname)),
+                bbox_inches='tight')
+    plt.show()
+    return sumtab, summary, figh
+
+
+label2num = {"NF1":1, "NF2":2, "NF3":3, "NF5":5, "NF7":7,  "NF9":9, "Full":1024, np.nan:np.nan}
+nf_csv_list = {
+ "NF%d"%(NF):join(modelroot,'resnet50_linf8-layer3_NF%d_bdr1_Tthresh_3__nobdr_res-robust_CV\\Both_pred_stats_resnet50_linf8-layer3_Tthresh_bdr1_NF%d_CV.csv')%(NF,NF)
+     for NF in [1,2,3,5,7,9]
+}
+tmptab = pd.read_csv(nf_csv_list["NF1"])
+valmsk = ~((tmptab.Animal=="Alfa") & (tmptab.Expi==10))
+
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50_robust-layer3_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50_robust-layer3_CV", expmsk=valmsk)
+
+#%% ResNet50-Robust layer2
+nf_csv_list = {
+ "NF%d"%(NF):join(modelroot,'resnet50_linf8-layer2_NF%d_bdr3_Tthresh_3__nobdr_res-robust_CV'
+                            '\\Both_pred_stats_resnet50_linf8-layer2_Tthresh_bdr3_NF%d_CV.csv')%(NF,NF)
+     for NF in [1,2,3,5,7,9]
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50_robust-layer2_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50_robust-layer2_CV", expmsk=valmsk)
+#%% VGG16
+nf_csv_list = {
+ 'NF%d'%(NF): join(modelroot,'vgg16-conv4_3_NF%d_bdr1_Tthresh_3__nobdr_CV\\Both_pred_stats_vgg16-conv4_3_Tthresh_bdr1_NF%d_CV.csv')%(NF,NF)
+    for NF in [1,2,3,5,7,9]
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="VGG16-conv4_3_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="VGG16-conv4_3_CV", expmsk=valmsk)
+#% Alexnet
+nf_csv_list = {
+"NF%d"%(NF): join(modelroot,'alexnet-conv4_NF%d_bdr1_Tthresh_3__nobdr_alex_CV\\Both_pred_stats_alexnet-conv4_Tthresh_bdr1_NF%d_CV.csv')%(NF,NF)
+    for NF in [1,2,3,5,7,9]
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="alexnet-conv4_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="alexnet-conv4_CV", expmsk=valmsk)
+#% Resnet50
+nf_csv_list = {
+"NF%d"%(NF): join(modelroot,'resnet50-layer3_NF%d_bdr1_Tthresh_3__nobdr_resnet_CV\\Both_pred_stats_resnet50-layer3_Tthresh_bdr1_NF%d_CV.csv')%(NF,NF)
+    for NF in [1,2,3,5,7,9]
+}
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_bef_norm_manif", modelstr="resnet50-layer3_CV", expmsk=valmsk)
+sumtab, summary, _ = pred_perform_cmp(nf_csv_list, label2num, "cc_aft_norm_manif", modelstr="resnet50-layer3_CV", expmsk=valmsk)
 
 
 
-    #%% Model comparison panel
-figroot = "O:\corrFeatTsr_FactorVis"
-sumdir = join(figroot, "summary")
+#%% Model comparison panel
+# figroot = "O:\corrFeatTsr_FactorVis"
+# sumdir = join(figroot, "summary")
+outdir = r"O:\Manuscript_Manifold\Figure4\Final_Elements"
 def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="area", stylevar="Animal", masktab=None,
                      mask=None):
     """Compare prediction score for 2 models
@@ -467,7 +590,7 @@ def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="are
     masktab["area"][(masktab.pref_chan <= 48) & (masktab.pref_chan >= 33)] = "V1"
     masktab["area"][masktab.pref_chan >= 49] = "V4"
 
-    figh = plt.figure(figsize=(5.5,5))
+    figh = plt.figure(figsize=(4.25,4))
     sns.scatterplot(x=tab1[varnm][mask], y=tab2[varnm][mask], hue=masktab[colorvar][mask], style=masktab[stylevar][mask])
     plt.plot([0,1],[0,1],linestyle=":", c='k', lw=1)
     plt.ylabel(explab2);plt.xlabel(explab1)
@@ -476,16 +599,22 @@ def pred_cmp_scatter(tab1, tab2, explab1, explab2, varnm="cc_bef", colorvar="are
     # cc = np.corrcoef(tab1[varnm], tab2[varnm])
     tval, pval = ttest_rel(np.arctanh(tab1[varnm][mask]), np.arctanh(tab2[varnm][mask]), nan_policy='omit') # ttest: exp1 - exp2
     plt.title("Linear model prediction %s comparison\ncc %.3f t test(Fisher z) %.2f (%.1e)"%(varnm, cc, tval, pval))
-    plt.savefig(join(sumdir, "models_pred_cmp_%s_%s_%s.png"%(varnm, explab1, explab2)))
-    plt.savefig(join(sumdir, "models_pred_cmp_%s_%s_%s.pdf"%(varnm, explab1, explab2)))
+    plt.savefig(join(outdir, "models_pred_cmp_%s_%s_%s.png"%(varnm, explab1, explab2)))
+    plt.savefig(join(outdir, "models_pred_cmp_%s_%s_%s.pdf"%(varnm, explab1, explab2)))
     plt.show()
     return figh
 
-#%%
 modelstr1 = "resnet50_linf8-layer3_Full_bdr1_Tthresh_3__nobdr_res-robust_CV"
 exptab1 = pd.read_csv(glob(join(modelroot, modelstr1, "*.csv"))[0])
 modelstr2 = "resnet50_linf8-layer3_NF3_bdr1_Tthresh_3__nobdr_res-robust_CV"
 exptab2 = pd.read_csv(glob(join(modelroot, modelstr2, "*.csv"))[0])
 valmsk = ~((exptab1.Animal=="Alfa")&(exptab1.Expi==10))
 pred_cmp_scatter(exptab1, exptab2, "ResNet-rbst-l3-Full", "ResNet-rbst-l3-NF3", mask=valmsk,
-                 varnm="cc_aft_norm_all", colorvar="area", stylevar="Animal", masktab=None)
+                 varnm="cc_aft_norm_manif", colorvar="area", stylevar="Animal", masktab=None)
+#%% Compare the performance of full model vs small model.
+varnm = "cc_aft_manif"
+print("Statistics %s"%varnm)
+for area in ["V1", "V4", "IT"]:
+    msk = (exptab2.area == area)&valmsk
+    tval, pval = ttest_rel(np.arctanh(exptab1[varnm][msk]), np.arctanh(exptab2[varnm][msk]),nan_policy="omit")
+    print("%s cmp Full - NF3: %.3f (P=%.1e, df=%d)"%(area, tval, pval,sum(msk)-1))
