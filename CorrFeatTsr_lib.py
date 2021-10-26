@@ -350,7 +350,7 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
         ppimgs.append(x)
     input_tsr = torch.cat(tuple(ppimgs), dim=0)
     # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow, no use
-    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
+    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3.0, 3.0))
     input_tsr = F.interpolate(input_tsr, size=[imgpix, imgpix], align_corners=True, mode='bilinear')
     input_tsr = F.interpolate(input_tsr, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
     if borderblur:
@@ -359,7 +359,7 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
         msk = torch.ones([fullimgsz - 2 * border, fullimgsz - 2 * border])
         msk = F.pad(msk, [border, border, border, border], mode="constant", value=0)
         blurmsk = (1 - msk).reshape([1, 1, fullimgsz, fullimgsz]);
-        blurmsk_trans = gaussian_blur2d(blurmsk, (5, 5), sigma=(3, 3))
+        blurmsk_trans = gaussian_blur2d(blurmsk, (5, 5), sigma=(3.0, 3.0))
         # bkgrdtsr = gaussian_blur2d(input_tsr*blurmsk, (5, 5), sigma=(3, 3))
         final_tsr = bkgrd_tsr * blurmsk_trans + input_tsr * (1 - blurmsk_trans)
         final_tsr = (final_tsr - RGBmean) / RGBstd

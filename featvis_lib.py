@@ -43,6 +43,8 @@ else:
     #     ckpt_dir = r"E:\Cluster_Backup\torch"
     elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2B': # Alfa rig monkey computer
         ckpt_dir = r"C:\Users\Ponce lab\Documents\Python\torch_nets"
+    elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2A': # Alfa rig monkey computer
+        ckpt_dir = r"C:\Users\Poncelab-ML2a\Documents\Python\torch_nets"
     else:
         ckpt_dir = r"E:\Cluster_Backup\torch"
 
