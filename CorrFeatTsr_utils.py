@@ -1,6 +1,7 @@
 """
 Many small utils functions useful for Correlated Feature Visualization Analysis etc.
 """
+from os.path import join
 from easydict import EasyDict
 import numpy as np
 import matplotlib.pyplot as plt
