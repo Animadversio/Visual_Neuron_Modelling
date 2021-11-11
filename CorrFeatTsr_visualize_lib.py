@@ -150,6 +150,10 @@ class CorrFeatScore:
                 act_mean = acttsr.mean(dim=sumdims, keepdim=True)
                 act_std = acttsr.std(dim=sumdims, keepdim=True)
                 score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=sumdims)
+            elif self.mode == "cosine":
+                w_norm = torch.linalg.norm(self.weight_tsr[layer])
+                act_norm = torch.linalg.norm(acttsr, dim=sumdims, keepdim=True)
+                score = ((self.weight_tsr[layer] * acttsr) / w_norm / act_norm).sum(dim=sumdims) # validate
             elif self.mode == "corrmask":
                 msk = self.mask_tsr[layer]
                 weightvec = self.weight_tsr[layer][msk]
