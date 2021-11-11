@@ -77,10 +77,10 @@ class Corr_Feat_Machine:
         self.cctsr = defaultdict(lambda: None)
         self.Ttsr = defaultdict(lambda: None)
 
-    def hook_forger(self, layer):
+    def hook_forger(self, layer, verbose=True):
         # this function is important, or layer will be redefined in the same scope!
         def activ_hook(module, fea_in, fea_out):
-            print("Extract from hooker on %s" % module.__class__)
+            if verbose: print("Extract from hooker on %s" % module.__class__)
             ref_feat = fea_out.detach().clone().cpu()
             ref_feat.requires_grad_(False)
             self.feat_tsr[layer] = ref_feat
@@ -88,7 +88,7 @@ class Corr_Feat_Machine:
 
         return activ_hook
 
-    def register_hooks(self, net, layers, netname="vgg16"):
+    def register_hooks(self, net, layers, netname="vgg16", verbose=True):
         if isinstance(layers, str):
             layers = [layers]
 
@@ -100,7 +100,7 @@ class Corr_Feat_Machine:
                 targmodule = net.__getattr__(layer)
             else:
                 raise NotImplementedError
-            actH = targmodule.register_forward_hook(self.hook_forger(layer))
+            actH = targmodule.register_forward_hook(self.hook_forger(layer, verbose=verbose))
             self.hooks.append(actH)
             self.layers.append(layer)
 
