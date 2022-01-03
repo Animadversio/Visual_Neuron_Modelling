@@ -41,6 +41,8 @@ else:
     #     ckpt_dir = r"E:\Cluster_Backup\torch"
     # elif os.environ['COMPUTERNAME'] == 'DESKTOP-9LH02U9':  # Home_WorkStation Victoria
     #     ckpt_dir = r"E:\Cluster_Backup\torch"
+    elif os.environ['COMPUTERNAME'] == 'LAPTOP-U8TSR4RE':
+        ckpt_dir = r"D:\torch\checkpoints"
     elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2B': # Alfa rig monkey computer
         ckpt_dir = r"C:\Users\Ponce lab\Documents\Python\torch_nets"
     elif os.environ['COMPUTERNAME'] == 'PONCELAB-ML2A': # Alfa rig monkey computer
@@ -49,6 +51,9 @@ else:
         ckpt_dir = r"E:\Cluster_Backup\torch"
 
 def load_featnet(netname: str):
+    """API to load common CNNs and their convolutional part. 
+    Default behvavior: load onto GPU, and set parameter gradient to false. 
+    """
     if netname == "alexnet":
         net = models.alexnet(True)
         net.requires_grad_(False)
@@ -67,7 +72,7 @@ def load_featnet(netname: str):
         net.requires_grad_(False)
         featnet = net.cuda().eval()
     else:
-        raise ValueError
+        raise NotImplementedError
     return featnet, net
 
 
