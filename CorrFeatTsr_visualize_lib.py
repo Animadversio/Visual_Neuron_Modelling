@@ -66,6 +66,18 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                                  'fc1'],
                 "resnet50": ["layer1", "layer2", "layer3", "layer4"]}
 
+
+if hasattr(torch, "norm"):
+    norm_torch = torch.norm
+    def norm_torch(tsr, dim=[], keepdim=False):
+        norms = (tsr ** 2).sum(dim=dim, keepdim=keepdim).sqrt()
+        return norms
+    
+elif hasattr(torch, "linalg"):
+    norm_torch = torch.linalg.norm
+else:
+    raise ModuleNotFoundError("Torch version non supported yet, check it. ")
+
 class CorrFeatScore:
     def __init__(self):
         self.feat_tsr = {}
@@ -151,8 +163,10 @@ class CorrFeatScore:
                 act_std = acttsr.std(dim=sumdims, keepdim=True)
                 score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=sumdims)
             elif self.mode == "cosine":
-                w_norm = torch.linalg.norm(self.weight_tsr[layer])
-                act_norm = torch.linalg.norm(acttsr, dim=sumdims, keepdim=True)
+                # w_norm = torch.linalg.norm(self.weight_tsr[layer])
+                # act_norm = torch.linalg.norm(acttsr, dim=sumdims, keepdim=True)
+                w_norm = norm_torch(self.weight_tsr[layer]) # .pow(2).sum().sqrt()
+                act_norm = norm_torch(acttsr, dim=sumdims, keepdim=True)
                 score = ((self.weight_tsr[layer] * acttsr) / w_norm / act_norm).sum(dim=sumdims) # validate
             elif self.mode == "corrmask":
                 msk = self.mask_tsr[layer]
