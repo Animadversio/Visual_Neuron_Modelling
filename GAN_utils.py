@@ -199,23 +199,7 @@ class multiZupconvGAN(nn.Module):
 #     name = name.replace(".1.", ".")
 #     SDnew[name] = W
 # UCG.G.load_state_dict(SDnew)
-#%%
-G = upconvGAN("fc7")
-G.G.requires_grad_(False)
-blendlayer = 'conv5_1'
-layeri = list(G.G._modules).index(blendlayer)
-preG = G.G[:layeri+1]
-posG = G.G[layeri+1:]
-c_num = preG[-1].out_channels
-z_num = 5
-b_num = 2
-#%%
-codes = torch.randn((b_num, z_num, 4096), requires_grad=True)
-z_alpha = torch.full((b_num, z_num, c_num), 1 / z_num, requires_grad=True)
-medtsr = preG(codes.view(b_num * z_num, -1))
-blendtsr = (medtsr.view((b_num, z_num)+tuple(medtsr.size()[1:])) * z_alpha[:,:,:,None,None]).sum(dim=1)
-imgs = posG(blendtsr)
-# nn.Sequential(*list(G.G._modules)[:blending_layer])
+
 #%% The first time to run this you need these modules
 if __name__ == "__main__":
     import sys
@@ -271,6 +255,24 @@ if __name__ == "__main__":
     UCG = upconvGAN("pool5")
     test_FCconsisitency(G, UCG)
 
+    # %% Random exp code
+    print("running random exp code ")
+    G = upconvGAN("fc7")
+    G.G.requires_grad_(False)
+    blendlayer = 'conv5_1'
+    layeri = list(G.G._modules).index(blendlayer)
+    preG = G.G[:layeri + 1]
+    posG = G.G[layeri + 1:]
+    c_num = preG[-1].out_channels
+    z_num = 5
+    b_num = 2
+    # %%
+    codes = torch.randn((b_num, z_num, 4096), requires_grad=True)
+    z_alpha = torch.full((b_num, z_num, c_num), 1 / z_num, requires_grad=True)
+    medtsr = preG(codes.view(b_num * z_num, -1))
+    blendtsr = (medtsr.view((b_num, z_num) + tuple(medtsr.size()[1:])) * z_alpha[:, :, :, None, None]).sum(dim=1)
+    imgs = posG(blendtsr)
+    # nn.Sequential(*list(G.G._modules)[:blending_layer])
 #%% This can work~
 # G = upconvGAN("pool5")
 # G.G.load_state_dict(torch.hub.load_state_dict_from_url(r"https://drive.google.com/uc?export=download&id=1vB_tOoXL064v9D6AKwl0gTs1a7jo68y7",progress=True))
