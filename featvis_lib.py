@@ -90,6 +90,38 @@ def show_img(img):
     plt.show()
 
 
+def visualize_cctsr_simple(featFetcher, layers2plot, imgcol=(), savestr="Evol", titstr="Alfa_Evol", figdir=""):
+    """ Visualize correlated values in the feature tensor.
+    copied from experiment_EvolFeatDecompose.py
+
+    Demo
+    ExpType = "EM_cmb"
+    layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
+    figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, )
+    figh.savefig(join("S:\corrFeatTsr","VGGsummary","%s_Exp%d_%s_corrTsr_vis.png"%(Animal,Expi,ExpType)))
+    """
+    nlayer = max(4, len(layers2plot))
+    figh, axs = plt.subplots(3,nlayer,figsize=[10/3*nlayer,8])
+    if imgcol is not None:
+        for imgi in range(len(imgcol)):
+            axs[0,imgi].imshow(imgcol[imgi])
+            axs[0,imgi].set_title("Highest Score Evol Img")
+            axs[0,imgi].axis("off")
+    for li, layer in enumerate(layers2plot):
+        chanN = featFetcher.cctsr[layer].shape[0]
+        tmp=axs[1,li].matshow(np.nansum(featFetcher.cctsr[layer].abs().numpy(),axis=0) / chanN)
+        plt.colorbar(tmp, ax=axs[1,li])
+        axs[1,li].set_title(layer+" mean abs cc")
+        tmp=axs[2,li].matshow(np.nanmax(featFetcher.cctsr[layer].abs().numpy(),axis=0))
+        plt.colorbar(tmp, ax=axs[2,li])
+        axs[2,li].set_title(layer+" max abs cc")
+    figh.suptitle("%s Exp Corr Feat Tensor"%(titstr))
+    plt.show()
+    figh.savefig(join(figdir, "%s_corrTsr_vis.png" % (savestr)))
+    figh.savefig(join(figdir, "%s_corrTsr_vis.pdf" % (savestr)))
+    return figh
+
+
 def rectify_tsr(cctsr: np.ndarray, mode="abs", thr=(-5, 5), Ttsr: np.ndarray=None):
     """ Rectify tensor to prep for NMF """
     if mode == "pos":
