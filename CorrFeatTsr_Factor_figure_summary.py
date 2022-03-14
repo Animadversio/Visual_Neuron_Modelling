@@ -288,11 +288,12 @@ for Animal, Expi in Explist[:]:
     figh.show()
 
 #%% Supplementary Figure S4O
+from featvis_lib import vis_feattsr, vis_feattsr_factor, vis_featvec_wmaps
+from CorrFeatTsr_predict_lib import visualize_fulltsrModel, visualize_factorModel
 from GAN_utils import upconvGAN
 G = upconvGAN("fc6").cuda()
 G.requires_grad_(False)
-#%%
-
+#%
 def get_cctsrs(Animal, Expi, exp_suffix, layer, nan2num=True):
     corrDict = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_Evol%s_corrTsr.npz" % (Animal, Expi, exp_suffix)),
                        allow_pickle=True)
@@ -311,8 +312,6 @@ def get_cctsrs(Animal, Expi, exp_suffix, layer, nan2num=True):
 
 
 #%% Add visualization to CV prediction examples
-from featvis_lib import vis_feattsr, vis_feattsr_factor, vis_featvec_wmaps
-from CorrFeatTsr_predict_lib import visualize_fulltsrModel, visualize_factorModel
 ExpAll = [("Alfa", Expi) for Expi in range(1, 47)] + [("Beto", Expi) for Expi in range(1, 46)]
 NFmodstr = "resnet50_linf8-layer3_NF3_bdr1_Tthresh_3__nobdr_res-robust_CV"
 Fullmodstr = "resnet50_linf8-layer3_Full_bdr1_Tthresh_3__nobdr_res-robust_CV"
@@ -377,10 +376,12 @@ for Animal, Expi in ExpAll[:]:#Explist[:]:
 
 #%% Visualize Experiments and Show Examples (Factor model and full model)
 outdir = "O:\Manuscript_Manifold\FigureS4\Examples"
-Explist = [("Beto", 11),
-           ("Alfa", 45),
-           ("Beto", 30),
-           ("Alfa", 36),]  #
+Explist = [# ("Beto", 11),
+           # ("Alfa", 45),
+           # ("Beto", 30),
+           # ("Alfa", 36),
+           ("Alfa", 20),
+           ]  #
 plotpred = True
 NFmodstr = "resnet50_linf8-layer3_NF3_bdr1_Tthresh_3__nobdr_res-robust_CV"
 Fullmodstr = "resnet50_linf8-layer3_Full_bdr1_Tthresh_3__nobdr_res-robust_CV"
