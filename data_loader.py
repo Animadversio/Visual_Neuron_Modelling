@@ -1,6 +1,8 @@
 """
-Newer API for data loading for Evolution, Manifold dataset. 
-for older one see load_neural_data
+Newer API for data loading for Evolution, Manifold dataset.
+Using the already formulated EStats and MStats structs from .mat files.
+
+for older one loading from full exp record see load_neural_data. 
 """
 import os
 from os.path import join
