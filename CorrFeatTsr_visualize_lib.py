@@ -66,7 +66,7 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                                  'fc1'],
                 "resnet50": ["layer1", "layer2", "layer3", "layer4"]}
 
-
+# ensure compatibility with multiple versions of torch.
 if hasattr(torch, "norm"):
     norm_torch = torch.norm
     def norm_torch(tsr, dim=[], keepdim=False):
@@ -78,7 +78,17 @@ elif hasattr(torch, "linalg"):
 else:
     raise ModuleNotFoundError("Torch version non supported yet, check it. ")
 
+
 class CorrFeatScore:
+    """ Util class to compute a score from an image using pretrained model and read out matrix.
+
+    Use a fixed weight matrix (deduced by correlated features) to read out from features of a layer.
+    This score could be used as objective to visualize the model.
+    This score could also be used as activation prediction for other images.
+
+    Example:
+
+    """
     def __init__(self):
         self.feat_tsr = {}
         self.weight_tsr = {}
@@ -256,7 +266,7 @@ def compose(transforms):
 def corr_visualize(scorer, CNNnet, preprocess, layername, tfms=[],
     lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
     savestr="", figdir="", imshow=False, PILshow=False, verbose=True, saveimg=False, score_mode="dot", maximize=True):
-    """  """
+    """ similar to `corr_GAN_visualize` but search for preferred images in pixel space instead of GAN space. """
     scorer.mode = score_mode
     score_sgn = -1 if maximize else 1
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()

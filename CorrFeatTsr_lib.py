@@ -59,7 +59,8 @@ layername_dict = {"alexnet":["conv1", "conv1_relu", "pool1",
 
 
 class Corr_Feat_Machine:
-    """The machinery to hook up a layer in CNN and to compute correlation online with certain output
+    """
+    The machinery to hook up a layer in CNN and to compute correlation online with certain output
     """
     def __init__(self):
         self.feat_tsr = {}
@@ -295,7 +296,10 @@ def visualize_cctsr_embed(featFetcher, layers2plot, ReprStats, Expi, Animal, Exp
 from tqdm import tqdm
 def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_func, 
         online_compute=True, batchsize=121, savedir="S:\corrFeatTsr", savenm="Evol"):
-    """The pipeline to compute Correlation Tensor for a bunch of images and reponses.""" 
+    """The pipeline to compute Correlation Tensor for a bunch of images and reponses.
+    The correlation results will be saved in savedir, "{savenm}_corrTsr.npz"
+
+    """
     imgN = len(imgfullpath_vect)
     if type(score_vect) is not list:
         score_tsr = torch.tensor(score_vect).float()  # torchify the score vector
@@ -335,8 +339,11 @@ preprocess = transforms.Compose([transforms.ToTensor(),
 def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False):
     """Prepare the input image batch!
     Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution.
-    INput: list of image full path
-    Output: 4d image tensor ready for torch network to process
+    :parameter
+        imgfullpath: list of image full path
+
+    :return:
+        4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
@@ -370,9 +377,13 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
 
 def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=True):
     """Prepare the input image batch!
-    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution, put the image embedded in a gray background.
-    INput: list of image full path
-    Output: 4d image tensor ready for torch network to process
+    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution,
+    put the image embedded in a gray background. (modified from loadimg_preprocess)
+    :parameter
+        imgfullpath: list of image full path
+
+    :return:
+        4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
