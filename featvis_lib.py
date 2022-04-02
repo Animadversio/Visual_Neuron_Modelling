@@ -99,11 +99,11 @@ def visualize_cctsr_simple(featFetcher, layers2plot, imgcol=(), savestr="Evol", 
     """ Visualize correlated values in the feature tensor.
     copied from experiment_EvolFeatDecompose.py
 
-    Demo
-    ExpType = "EM_cmb"
-    layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
-    figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, )
-    figh.savefig(join("S:\corrFeatTsr","VGGsummary","%s_Exp%d_%s_corrTsr_vis.png"%(Animal,Expi,ExpType)))
+    Example:
+        ExpType = "EM_cmb"
+        layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
+        figh = visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, )
+        figh.savefig(join("S:\corrFeatTsr","VGGsummary","%s_Exp%d_%s_corrTsr_vis.png"%(Animal,Expi,ExpType)))
     """
     nlayer = max(4, len(layers2plot))
     figh, axs = plt.subplots(3,nlayer,figsize=[10/3*nlayer,8])
