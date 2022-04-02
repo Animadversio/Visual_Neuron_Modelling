@@ -15,7 +15,7 @@ mpl.rcParams['axes.spines.top'] = False
 def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preprocess, batchsize=70,):
     """ Basic function to use scorers to load and score a bunch of imgfps. 
     :param featNet: a feature processing network nn.Module.
-    :param scorer: CorrFeatScore
+    :param scorer: `CorrFeatScore` object.
     :param layername: str, the layer you are generating the score from
     :param imgfps: a list of full paths to the images.
     :param imgloader: image loader, a function taking a list to full path as input and returns a preprocessed image
@@ -47,6 +47,54 @@ def score_images(featNet, scorer, layername, imgfps, imgloader=loadimg_preproces
         pbar.update(cend - csr)
         csr = cend
     pbar.close()
+    score_all = torch.cat(tuple(score_all), dim=0)
+    return score_all
+
+from torchvision.transforms import ToPILImage, ToTensor, Resize, Compose, \
+            Normalize, GaussianBlur
+from dataset_utils import ImagePathDataset, DataLoader
+def score_images_torchdata(featNet, scorer, layername, imgfps,
+                           batchsize=70, workers=6, imgloader=loadimg_preprocess,):
+    """ Basic function to use scorers to load and score a bunch of imgfps.
+    This function uses torch.DataLoader and multiprocessing to speed up the image loading.
+    It could accelerate the loading of images by a factor of 4 or more.
+
+    :param featNet: a feature processing network nn.Module.
+    :param scorer: `CorrFeatScore` object.
+    :param layername: str, the layer you are generating the score from
+    :param imgfps: a list of full paths to the images.
+    :param imgloader: image loader, a function taking a list to full path as input and returns a preprocessed image
+        tensor.
+    :param batchsize: batch size in processing images. Usually 120 is fine with a 6gb gpu.
+    :return:
+        score_all: tensor of returned scores.
+
+    :Example:
+        scorer = CorrFeatScore()
+        scorer.register_hooks(net, layer, netname=netname)
+        scorer.register_weights({layer: DR_Wtsr})
+        pred_score = score_images(featnet, scorer, layer, imgfullpath_vect, imgloader=loadimg_preprocess, batchsize=80,)
+        scorer.clear_hook()
+        nlfunc, popt, pcov, scaling, nlpred_score = fitnl_predscore(pred_score.numpy(), score_vect)
+
+    """
+    transform = Compose([ToTensor(),
+                          Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                          GaussianBlur((5, 5), 3),
+                          Resize(120),
+                          Resize(224)])
+    # TODO: add borderblur, make the transform more customizable.
+    imgdata = ImagePathDataset(imgfps, None, transform=transform)
+    imgloader = DataLoader(imgdata, batch_size=batchsize, shuffle=False, num_workers=workers)
+
+    score_all = []
+    for i, (imgtsr, score) in tqdm(enumerate(imgloader)):
+        with torch.no_grad():
+            featNet(imgtsr.cuda()).cpu()
+            score = scorer.corrfeat_score(layername)
+        score_all.append(score.detach().clone().cpu())
+
     score_all = torch.cat(tuple(score_all), dim=0)
     return score_all
 

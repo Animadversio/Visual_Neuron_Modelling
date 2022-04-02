@@ -98,7 +98,7 @@ class CorrFeatScore:
         self.layers = []
         self.scores = {}
         self.netname = None
-        self.mode = "dot"  # "corr"
+        self.mode = "dot"  # use dot product by default. This could work as linear model over features.
 
     def hook_forger(self, layer, grad=True):
         # this function is important, or layer will be redefined in the same scope!
@@ -153,8 +153,15 @@ class CorrFeatScore:
                 sumdims = [1, 2, 3]
             else:
                 raise ValueError
+
             if self.mode == "dot":
-                score = (self.weight_tsr[layer] * acttsr).sum(dim=sumdims)
+                if self.weight_tsr[layer].ndim == 4:
+                    # if multiple weight tensors are combined along the 0 dim, (Nweights, C, H, W)
+                    # we can compute scores for them all at once.
+                    # score will be of shape (B, Nweights)
+                    score = (acttsr.unsqueeze(-1) * self.weight_tsr[layer].permute([1, 2, 3, 0]) ).sum(dim=sumdims)
+                else:
+                    score = (self.weight_tsr[layer] * acttsr).sum(dim=sumdims)
                 if Nnorm: score = score / self.weight_N[layer]
             elif self.mode == "MSE":
                 score = (self.weight_tsr[layer] - acttsr).pow(2).mean(dim=sumdims)
