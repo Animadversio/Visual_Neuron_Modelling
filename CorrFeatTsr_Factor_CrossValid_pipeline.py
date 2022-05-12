@@ -17,8 +17,6 @@ import matplotlib.pylab as plt
 from GAN_utils import upconvGAN
 import pandas as pd
 import seaborn as sns
-
-
 # def visualize_fulltsrModel(AllStat, PD, protoimg, Wtsr, explabel, savestr="", figdir="", show=True,
 #                            tsr_proto=None, bdr=0):
 #     """Summarize the evaluations of a full tsr linear model."""

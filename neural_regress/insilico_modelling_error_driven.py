@@ -25,7 +25,7 @@ dataroot = r"E:\OneDrive - Harvard University\CNN_neural_regression"
 G = upconvGAN("fc6").cuda()
 G.requires_grad_(False)
 #%%
-from neural_regress.insilico_modelling_lib import sweep_regressors, compare_activation_prediction, \
+from neural_regress.regress_lib import sweep_regressors, compare_activation_prediction, \
     PoissonRegressor, Ridge, KernelRidge, Lasso
 # Build the regressors
 ridge = Ridge(alpha=1.0)

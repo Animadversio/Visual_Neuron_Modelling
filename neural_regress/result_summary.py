@@ -1,4 +1,4 @@
-"""Visualize and summarize the results comparing different neural regression fit_models."""
+""" Visualize and summarize the results comparing different neural regression fit_models."""
 import sys
 import os
 from os.path import join

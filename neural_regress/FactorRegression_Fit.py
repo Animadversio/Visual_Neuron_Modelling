@@ -1,9 +1,10 @@
+"""
+Factorized regression by alternative least square with corrfeat factor initialization.
+Still testing.
+"""
 import matplotlib.pyplot as plt
-
 from featvis_lib import CorrFeatScore, tsr_posneg_factorize, rectify_tsr, pad_factor_prod
 from CorrFeatTsr_predict_lib import fitnl_predscore, score_images, loadimg_preprocess, predict_fit_dataset
-
-
 from sklearn.pipeline import make_pipeline
 from sklearn.random_projection import johnson_lindenstrauss_min_dim, \
             SparseRandomProjection, GaussianRandomProjection
@@ -99,7 +100,7 @@ score_vect, imgfullpath_vect = load_score_mat(EStats, MStats, Expi,
 #%%
 layer = "layer3"
 netname = "resnet50_linf8"
-#%%
+#%% Loading or compute the factorization.
 NF = 3; rect_mode = "Tthresh"; thresh = (None, 3)
 init = "nndsvda"; solver="cd"; l1_ratio=0; alpha=0; beta_loss="frobenius"; bdr = 1
 explabel = f"{Animal}_Exp{Expi:02}_resnet50_linf8_{layer}_corrfeat_rect{rect_mode}_init{init}_solver{solver}_l1{l1_ratio}_alpha{alpha}_beta{beta_loss}"
@@ -120,7 +121,6 @@ Hmat, Hmaps, ccfactor, FactStat = tsr_posneg_factorize(rectify_tsr(covtsr, rect_
          figdir=figdir, savestr="%s-%scov" % (netname, layer), suptit=explabel, show=True,)
 
 #%%
-
 scorer = CorrFeatScore()
 scorer.register_hooks(net, layer, netname="resnet50_linf8")
 rank1_Wtsr = [pad_factor_prod(Hmaps[:, :, i:i+1], ccfactor[:, i:i+1], bdr=bdr) for i in range(3)]
@@ -138,7 +138,6 @@ feat_spprod = calc_features_times_spatialmask(score_vect, imgfullpath_vect, net,
 #%%
 feattsr_all = calc_features(score_vect, imgfullpath_vect, net, featlayer,
                   batch_size=80, workers=6, img_dim=(224, 224))  # (N, C, H, W)
-#%%
 #%%
 feat_featprod = np.einsum("bchw,cn->bhwn", feattsr_all, ccfactor)  # (N, H, W, NF)
 #%%
@@ -169,7 +168,8 @@ Hmaps_prime = clf2.coef_.reshape(H, W, NF)
 import matplotlib.pylab as plt
 plt.imshow(Hmaps_prime / Hmaps_prime.max())
 plt.show()
-#%%
+
+#%% Step functions for alternative least square.
 def update_ccfactor(feattsr_all, score_vect, ccfactor, padded_Hmaps, train_idx, test_idx):
     Nimg, C, H, W = feattsr_all.shape
     NF = ccfactor.shape[1]
@@ -221,6 +221,7 @@ def update_Hmap_ccfact(feattsr_all, score_vect, ccfactor, padded_Hmaps, train_id
     print("Hmap updates, alpha %.1e: Training set D2 %.3f\t Test set D2 %.3f" % (clf2.alpha_, D2_train2, D2_test2))
     Hmaps_prime = clf2.coef_.reshape(H, W, NF)
     return Hmaps_prime, ccfactor_prime, clf, clf2, D2_train, D2_test, D2_train2, D2_test2
+
 
 def eval_factors(feattsr_all, score_vect, ccfactor, padded_Hmaps, train_idx, test_idx):
     linpred_score = np.einsum("bchw,hwN,cN->b", feattsr_all, padded_Hmaps, ccfactor)

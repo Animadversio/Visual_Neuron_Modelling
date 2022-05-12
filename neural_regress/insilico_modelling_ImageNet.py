@@ -2,6 +2,7 @@ import torch
 import torchvision.models as fit_models
 import numpy as np
 import pandas as pd
+import pickle as pkl
 from tqdm import tqdm
 from os.path import join
 import matplotlib.pylab as plt
@@ -14,7 +15,7 @@ from layer_hook_utils import get_module_names, register_hook_by_module_names, la
 from collections import defaultdict
 from sklearn.decomposition import IncrementalPCA
 from sklearn.random_projection import SparseRandomProjection
-from neural_regress.insilico_modelling_lib import compare_activation_prediction, sweep_regressors, \
+from neural_regress.regress_lib import compare_activation_prediction, sweep_regressors, \
     resizer, normalizer, denormalizer, PoissonRegressor, RidgeCV, Ridge, KernelRidge
 #%% Prepare CNN, GAN players
 G = upconvGAN("fc6").cuda()
@@ -68,7 +69,6 @@ for i, (imgs, _) in tqdm(enumerate(data_loader)):
 #%%
 target_scores_natval = np.concatenate(target_scores_natval, axis=0)
 #%%
-import pickle as pkl
 with open(join("E:\\ImageNet_Features.pkl"), "wb") as f:
     pkl.dump(Xfeat_dict, f)
 #%%
