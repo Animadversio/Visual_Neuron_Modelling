@@ -31,6 +31,12 @@ class ImagePathDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.imgfps[idx]
         img = imread(img_path)
+        if len(img.shape) == 2:
+            img = img[:, :, None]
+        if img.shape[2] == 4:
+            img = img[:, :, :3]
+        elif img.shape[2] == 1:
+            img = img.repeat(3, axis=2)
         imgtsr = self.transform(img)
         score = self.scores[idx]
         return imgtsr, score
