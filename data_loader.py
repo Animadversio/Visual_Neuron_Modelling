@@ -116,7 +116,8 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             nunit = np.alen(MStats[Expi - 1].units.pref_chan_id)  # use alen instead of len to get len(10) work
             psth = MStats[Expi - 1].ref.gab_psths.reshape(-1)
             idx_vect = MStats[Expi - 1].ref.gab_idx_grid.reshape([-1])
-            validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            # validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            validmsk = [(np.isscalar(I) or len(I) != 0) for I in idx_vect]  # newer version, without np.alen
             psth, idx_vect = psth[validmsk], idx_vect[validmsk]
             psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
             scorecol = [np.mean(P[ui - 1, 50:200, :], axis=0).astype(np.float) for P in psthlist]  # avg over time
@@ -140,7 +141,8 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             nunit = np.alen(MStats[Expi - 1].units.pref_chan_id)  # use alen instead of len to get len(10) work
             psth = MStats[Expi - 1].ref.pasu_psths.reshape(-1)
             idx_vect = MStats[Expi - 1].ref.pasu_idx_grid.reshape([-1])
-            validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            # validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            validmsk = [(np.isscalar(I) or len(I) != 0) for I in idx_vect]  # newer version, without np.alen
             psth, idx_vect = psth[validmsk], idx_vect[validmsk]
             psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
             scorecol = [np.mean(P[ui - 1, 50:200, :], axis=0).astype(np.float) for P in psthlist]  # avg over time

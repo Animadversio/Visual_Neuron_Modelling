@@ -4,6 +4,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.transforms import ToTensor, ToPILImage, \
     Normalize, Compose, Resize
 from imageio import imread, imsave
+from glob import glob
 
 class ImagePathDataset(Dataset):
     """
