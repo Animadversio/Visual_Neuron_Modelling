@@ -11,6 +11,7 @@ from torchvision.transforms import ToPILImage, ToTensor, Normalize, Resize
 from torch_utils import show_imgrid
 import numpy as np
 import pandas as pd
+import pickle as pkl
 import matplotlib.pylab as plt
 from os.path import join
 from collections import defaultdict
@@ -73,6 +74,7 @@ def calc_reduce_features(score_vect, imgfullpath_vect, feat_transformers, net, f
             if None, then it's default to be zeros. ImagePathDataset will handle None scores.
     :param imgfullpath_vect: a list full path to images
     :param feattsr_reducer: a dict of functions that reduce a feature tensor to a vector
+            Here we assume the input to each transformer is a numpy array (not torch tensor)
         Examples:
                     {"none": lambda x: x, }
         Examples:
@@ -112,7 +114,8 @@ def calc_reduce_features(score_vect, imgfullpath_vect, feat_transformers, net, f
 def sweep_regressors(Xdict, y_all, regressors, regressor_names,):
     """
     Sweep through a list of regressors (with cross validation), and input type (Xdict)
-     return the best regressor and its parameters
+    For each combination of Xtype and regressor, return the best CVed regressor
+        and its parameters, in a model_dict and a dataframe
     :param Xdict:
     :param y_all:
     :param regressors:
@@ -180,3 +183,105 @@ def compare_activation_prediction(target_scores_natval, pred_scores_natval, expt
     test_result_df = pd.DataFrame(result_col)
     test_result_df.T.to_csv(join(savedir, f"{exptitle}_regress_results.csv"))
     return test_result_df.T
+
+
+def evaluate_prediction(fit_models, Xfeat_dict, y_true, label="", savedir=None):
+    """
+    Evaluate the prediction of a dict of models
+    :param fit_models: dict of models
+    :param Xfeat_dict: dict of feature tensors, input to the models
+    :param y_true: true y values
+    :param label: label for saving, saved to the dataframe.
+    :param savedir: directory to save the results. If None, no saving.
+        saved `df` `eval_dict` `y_pred_dict`
+    :return:
+        df: dataframe summarize evaluation statistics of each model
+        eval_dict: same thing in a dict
+        y_pred_dict: dict of predictions vectors, used to do other evaluation.
+
+    Ported from ManifExp_regression_fit
+    """
+    print(label, f"  N imgs: {len(y_true)}")
+    eval_dict = {}
+    y_pred_dict = {}
+    for (Xtype, regrname), regr in fit_models.items():
+        try:
+            y_pred = regr.predict(Xfeat_dict[Xtype])
+            if isinstance(regr, PLSRegression):
+                y_pred = y_pred[:, 0]
+            D2 = regr.score(Xfeat_dict[Xtype], y_true)
+            rho_p, pval_p = pearsonr(y_pred, y_true)
+            rho_s, pval_s = spearmanr(y_pred, y_true)
+            print(f"{Xtype} {regrname} Prediction Pearson: {rho_p:.3f} {pval_p:.1e} Spearman: {rho_s:.3f} {pval_s:.1e} D2: {D2:.3f}")
+            eval_dict[(Xtype, regrname)] = {"rho_p":rho_p, "pval_p":pval_p, "rho_s":rho_s, "pval_s":pval_s, "D2":D2, "imgN":len(y_true)}
+            y_pred_dict[(Xtype, regrname)] = y_pred
+        except:
+            continue
+    parts = label.split("-")
+    layer, datasetstr = parts[-2], parts[-1]
+    df = pd.DataFrame(eval_dict).T
+    df["label"] = label
+    df["layer"] = layer
+    df["img_space"] = datasetstr
+    if savedir is not None:
+        df.to_csv(join(savedir, f"eval_predict_{label}.csv"), index=True)
+        pkl.dump(eval_dict, open(join(savedir, f"eval_stats_{label}.pkl"), "wb"))
+        pkl.dump(y_pred_dict, open(join(savedir, f"eval_predvec_{label}.pkl"), "wb"))
+    return df, eval_dict, y_pred_dict
+
+
+
+def merge_dict_arrays(*dict_arrays):
+    """
+    Merge a list of dicts into a single dict.
+    """
+    # skip the empty dicts, use the dict with the most keys
+    keys = []
+    for d in dict_arrays:
+        if len(d) != 0:
+            keys = [*d.keys()]
+            break
+    # fill the empty dicts with the keys paired with empty arrays (this dataset has no images in this )
+    for d in dict_arrays:
+        if len(d) == 0:
+            for k in keys:
+                d[k] = np.array([])
+
+    # TODO: solve variable array length problem. Every value in each array should be the same length.
+    merged_dict = {}
+    for key in keys:
+        merged_dict[key] = np.concatenate([d[key] for d in dict_arrays], axis=0)
+
+    return merged_dict
+
+
+def merge_arrays(*arrays):
+    """
+    Merge a list of arrays into a single array.
+    """
+    return np.concatenate(arrays, axis=0)
+
+
+def evaluate_dict(y_pred_dict, y_true, label, savedir=None):
+    print(label, f"  N imgs: {len(y_true)}")
+    eval_dict = {}
+    for (Xtype, regrname), y_pred in y_pred_dict.items():
+        D2 = 1 - np.var(y_pred - y_true) / np.var(y_true)  # regr.score(Xfeat_dict[Xtype], y_true)
+        rho_p, pval_p = pearsonr(y_pred, y_true)
+        rho_s, pval_s = spearmanr(y_pred, y_true)
+        print(
+            f"{Xtype} {regrname} Prediction Pearson: {rho_p:.3f} {pval_p:.1e} Spearman: {rho_s:.3f} {pval_s:.1e} D2: {D2:.3f}")
+        eval_dict[(Xtype, regrname)] = {"rho_p": rho_p, "pval_p": pval_p, "rho_s": rho_s, "pval_s": pval_s,
+                                        "D2": D2, "imgN": len(y_true)}
+    parts = label.split("-")
+    layer, datasetstr = parts[-2], parts[-1]
+    df = pd.DataFrame(eval_dict).T
+    df["label"] = label
+    df["layer"] = layer
+    df["img_space"] = datasetstr
+    if savedir is not None:
+        df.to_csv(join(savedir, f"eval_predict_{label}.csv"), index=True)
+        pkl.dump(eval_dict, open(join(savedir, f"eval_stats_{label}.pkl"), "wb"))
+        pkl.dump(y_pred_dict, open(join(savedir, f"eval_predvec_{label}.pkl"), "wb"))
+
+    return df, eval_dict, y_pred_dict
