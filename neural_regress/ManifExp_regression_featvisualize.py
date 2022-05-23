@@ -98,6 +98,7 @@ for Animal in ["Alfa", "Beto"]:
             save_imgrid(imgtsrs, join(featvis_dir,
                       f"{Animal}-Exp{Expi:02d}-{featlayer}-{Xtype}-{regressor}_vis.png"))
 #%%
+"""Summarize the results into a montage acrsoo methods"""
 from build_montages import crop_from_montage, make_grid_np
 # featlayer = ".layer3.Bottleneck5"
 featlayer = ".layer4.Bottleneck2"
@@ -115,8 +116,6 @@ for Animal in ["Alfa", "Beto"]:
             proto_col.append(proto_first)
         method_mtg = make_grid_np(proto_col, nrow=3)
         plt.imsave(join(featvis_dir, f"{Animal}-Exp{Expi:02d}-{featlayer}-regr_merge_vis.png"), method_mtg, )
-
-
 
 #%%
 import matplotlib.pyplot as plt
