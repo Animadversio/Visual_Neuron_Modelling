@@ -58,6 +58,7 @@ def calc_features(score_vect, imgfullpath_vect, net, featlayer,
     del feattsr_col, featFetcher
     return feattsr_all
 
+
 def calc_features_times_spatialmask(score_vect, imgfullpath_vect, net, featlayer,
                   spatialmask, batch_size=80, workers=6, img_dim=(224, 224)):
     """

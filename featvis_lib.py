@@ -224,7 +224,7 @@ def posneg_sep(tsr: np.ndarray, axis=0):
 
 def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3,
                 init="nndsvda", solver="cd", l1_ratio=0, alpha=0, beta_loss="frobenius",
-                figdir="", savestr="", suptit="", show=True):
+                figdir="", savestr="", suptit="", show=True, do_plot=True):
     """ Factorize the cc tensor using NMF directly
     If any entries of cctsr is negative, it will use `posneg_sep` to create an augmented matrix with only positive entries.
     Then use NMF on that matrix. This process simulates the one sided NNMF. 
@@ -268,29 +268,30 @@ def tsr_posneg_factorize(cctsr: np.ndarray, bdr=2, Nfactor=3,
         Hmaps_plot = np.concatenate((Hmaps, np.zeros((*Hmaps.shape[:2], 3 - Hmaps.shape[2]))), axis=2)
     else:
         Hmaps_plot = Hmaps[:, :, :3]
-    plt.imshow(Hmaps_plot / Hmaps_plot.max())
-    plt.axis('off')
-    plt.title("%s\nchannel merged"%suptit)
-    plt.savefig(join(figdir, "%s_dir_factor_merged.png" % (savestr))) # direct factorize
-    plt.savefig(join(figdir, "%s_dir_factor_merged.pdf" % (savestr)))
-    if show: plt.show()
-    else: plt.close()
-    # Visualize maps and their associated channel vector
-    [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0], squeeze=False)
-    for ci in range(Hmaps.shape[2]):
-        plt.sca(axs[0, ci])  # show the map correlation
-        plt.imshow(Hmaps[:, :, ci] / Hmaps.max())
-        plt.axis("off")
-        plt.colorbar()
-        plt.sca(axs[1, ci])  # show the channel association
-        axs[1, ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.', alpha=0.4)
-        axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
-        axs[1, ci].plot(sorted(ccfactor[:, ci]), alpha=0.25)
-    plt.suptitle("%s\nSeparate Factors"%suptit)
-    figh.savefig(join(figdir, "%s_dir_factors.png" % (savestr)))
-    figh.savefig(join(figdir, "%s_dir_factors.pdf" % (savestr)))
-    if show: plt.show()
-    else: plt.close()
+    if do_plot:
+        plt.imshow(Hmaps_plot / Hmaps_plot.max())
+        plt.axis('off')
+        plt.title("%s\nchannel merged"%suptit)
+        plt.savefig(join(figdir, "%s_dir_factor_merged.png" % (savestr))) # direct factorize
+        plt.savefig(join(figdir, "%s_dir_factor_merged.pdf" % (savestr)))
+        if show: plt.show()
+        else: plt.close()
+        # Visualize maps and their associated channel vector
+        [figh, axs] = plt.subplots(2, Nfactor, figsize=[Nfactor*2.7, 5.0], squeeze=False)
+        for ci in range(Hmaps.shape[2]):
+            plt.sca(axs[0, ci])  # show the map correlation
+            plt.imshow(Hmaps[:, :, ci] / Hmaps.max())
+            plt.axis("off")
+            plt.colorbar()
+            plt.sca(axs[1, ci])  # show the channel association
+            axs[1, ci].plot([0, ccfactor.shape[0]], [0, 0], 'k-.', alpha=0.4)
+            axs[1, ci].plot(ccfactor[:, ci], alpha=0.5)
+            axs[1, ci].plot(sorted(ccfactor[:, ci]), alpha=0.25)
+        plt.suptitle("%s\nSeparate Factors"%suptit)
+        figh.savefig(join(figdir, "%s_dir_factors.png" % (savestr)))
+        figh.savefig(join(figdir, "%s_dir_factors.pdf" % (savestr)))
+        if show: plt.show()
+        else: plt.close()
     Stat = EasyDict()
     for varnm in ["exp_var", "reg_cc", "fact_norms", "exp_var", "C", "H", "W", "bdr", "Nfactor", "init", "solver"]:
         Stat[varnm] = eval(varnm)
