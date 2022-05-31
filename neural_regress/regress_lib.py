@@ -111,6 +111,55 @@ def calc_reduce_features(score_vect, imgfullpath_vect, feat_transformers, net, f
     return feattsr_col
 
 
+from torch.utils.data import Subset, SubsetRandomSampler
+def calc_reduce_features_dataset(dataset, feat_transformers, net, featlayer,
+                  batch_size=40, workers=6, img_dim=(227, 227), idx_range=None):
+    """Calculate reduced features for a set of images. (for memory saving)
+
+    :param dataset: Image Dataset
+    :param feattsr_reducer: a dict of functions that reduce a feature tensor to a vector
+            Here we assume the input to each transformer is a numpy array (not torch tensor)
+        Examples:
+                    {"none": lambda x: x, }
+        Examples:
+            Xfeat_transformer = {'pca': lambda tsr: pca.transform(tsr.reshape(tsr.shape[0], -1)),
+                     "srp": lambda tsr: srp.transform(tsr.reshape(tsr.shape[0], -1)),
+                     "sp_rf": lambda tsr: tsr[:, :, 6, 6],
+                     "sp_avg": lambda tsr: tsr.mean(axis=(2, 3))}
+    :param net: net to extract features from
+    :param featlayer: layer to extract features from
+    :param batch_size: batch size for DataLoader
+    :param workers: number of workers for DataLoader
+    :param img_dim: image dimensions
+    :return:
+    """
+    if idx_range is None:
+        imgloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=workers)
+    else:
+        imgloader = DataLoader(Subset(dataset, idx_range), batch_size=batch_size,
+                               shuffle=False, num_workers=workers,)
+    # imgdata = dataset
+    # imgloader = DataLoader(imgdata, batch_size=batch_size, shuffle=False, num_workers=workers)
+
+    featFetcher = featureFetcher(net, print_module=False)
+    featFetcher.record(featlayer, )
+    feattsr_col = defaultdict(list)
+    for i, (imgtsr, score) in tqdm(enumerate(imgloader)):
+        with torch.no_grad():
+            net(imgtsr.cuda())
+        feattsr = featFetcher[featlayer]
+        for tfmname, feat_transform in feat_transformers.items():
+            feattsr_col[tfmname].append(feat_transform(feattsr.cpu().numpy()))
+        # feattsr_col.append(feattsr.cpu().numpy())
+    for tfmname in feattsr_col:
+        feattsr_col[tfmname] = np.concatenate(feattsr_col[tfmname], axis=0)
+        print(tfmname, "feature tensor shape", feattsr_col[tfmname].shape)
+    # feattsr_all = np.concatenate(feattsr_col, axis=0)
+    # print("score vector shape", score_vect.shape)
+    del featFetcher
+    return feattsr_col
+
+
 def sweep_regressors(Xdict, y_all, regressors, regressor_names,):
     """
     Sweep through a list of regressors (with cross validation), and input type (Xdict)
