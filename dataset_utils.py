@@ -2,9 +2,10 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision.transforms import ToTensor, ToPILImage, \
-    Normalize, Compose, Resize
+    Normalize, Compose, Resize, CenterCrop
 from imageio import imread, imsave
 from glob import glob
+from torch.utils.data import Subset, SubsetRandomSampler
 
 class ImagePathDataset(Dataset):
     """
@@ -43,3 +44,13 @@ class ImagePathDataset(Dataset):
         return imgtsr, score
 
 # ImageNet Validation Dataset
+def create_imagenet_valid_dataset(imgpix=256, normalize=True,):
+    RGB_mean = torch.tensor([0.485, 0.456, 0.406]) #.view(1,-1,1,1).cuda()
+    RGB_std  = torch.tensor([0.229, 0.224, 0.225]) #.view(1,-1,1,1).cuda()
+    preprocess = Compose([ToTensor(),
+                          Resize(imgpix, ),
+                          CenterCrop((imgpix, imgpix), ),
+                          Normalize(RGB_mean, RGB_std) if normalize else lambda x: x
+                          ])
+    dataset = ImageFolder(r"E:\Datasets\imagenet-valid", transform=preprocess)
+    return dataset
