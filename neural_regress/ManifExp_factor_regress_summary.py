@@ -1,3 +1,6 @@
+"""
+Summarizing all penalized regression and factor regression models.
+"""
 import re
 import os
 from os.path import join
@@ -10,53 +13,11 @@ rootdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress"
 sumdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
 figdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
 #%%
-exptype = "all"
-df_all = pd.DataFrame()
-for Animal in ["Alfa", "Beto"]:
-    for Expi in range(1, 47):
-        if Animal == "Beto" and Expi == 46: continue
-        expdir = join(rootdir, f"{Animal}_{Expi:02d}")
-        for exptype in ["Evol", "Manif", "Gabor", "Pasu", "EvolRef", "allnat", "all"]:
-            for featlayer in [".layer2.Bottleneck3", ".layer3.Bottleneck5", ".layer4.Bottleneck2"]:
-                df = pd.read_csv(join(expdir, f"eval_predict_factreg-{featlayer}-{exptype}.csv"), index_col=(0,1))
-                df["Animal"] = Animal
-                df["Expi"] = Expi
-                df_all = pd.concat([df_all, df], axis=0)
-#%%
-df_all = df_all.set_index("layer", append=True).swaplevel(0,2)
-df_all = df_all.rename_axis(['layer', 'regressor', 'FeatRed'])
-df_all["layer_s"] = df_all.layer.apply(lambda s:s.split(".")[1])
-df_all.to_csv(join(sumdir, "Combined_FactorRegression_summary.csv"))
-
+df_all = pd.read_csv(join(sumdir, "Combined_Penalize-FactorRegression_summary.csv"), index_col=0)
 df_all_reset = df_all.reset_index(inplace=False)
+df_all_reset["layer_s"] = df_all_reset.layer.apply(lambda s: s.split(".")[1])  # short name for layer
 validmsk = ~((df_all_reset.Animal == "Alfa") & (df_all_reset.Expi == 10))
-#%%
-validmsk = ~((df_all.Animal == "Alfa") & (df_all.Expi == 10))
-df_all[validmsk].groupby(level=(0, 1, 2)).agg(("mean","sem","count"))\
-    [["rho_p", "D2"]]
-#%%
-g = sns.FacetGrid(df_all_reset[validmsk], col="img_space", row="regressor", hue="layer",
-                  height=5, aspect=0.75, ylim=(-0.2, 1.0),
-                  col_order=["all", "allnat", "Manif", "Gabor", "Pasu", "EvolRef", ])
-g.map(sns.barplot, "FeatRed", "rho_p",
-      order=["facttsr1", 'factor1', 'spmask1', 'featvec1',
-             'facttsr3', 'factor3', 'spmask3', 'featvec3'], )
-plt.suptitle(f"Compare Regression methods {Animal} {Expi:02d} {featlayer}")
-# g.savefig(join(figdir, f"prediction_comparison_{Animal}_{Expi:02d}_{featlayer}.png"))
-plt.show()
-#%%
-g = sns.FacetGrid(df_all_reset[validmsk & (df_all_reset.img_space == "allnat")],#Manif
-                  col="layer_s", row="regressor",
-                  height=5, aspect=0.75, ylim=(-0.2, 1.0),)
-g.map(sns.barplot, "FeatRed", "rho_p",
-      order=["facttsr1", 'factor1', 'spmask1', 'featvec1',
-             'facttsr3', 'factor3', 'spmask3', 'featvec3'], )
-plt.suptitle(f"Compare Regression methods all Expi, all layers, allnat image space", fontsize=14)
-g.set_xticklabels(rotation=30)
-g.set_titles(size=11)
-plt.tight_layout()
-# g.savefig(join(figdir, f"prediction_comparison_{Animal}_{Expi:02d}_{featlayer}.png"))
-plt.show()
+df_all_valid = df_all_reset[validmsk]
 #%%
 """
 Combine statistics for all exp all layers all methods (Penalized regression + FeatureCorrelation)
@@ -69,11 +30,13 @@ for Animal in ["Alfa", "Beto"]:
         expdir = join(rootdir, f"{Animal}_{Expi:02d}")
         for exptype in ["Evol", "Manif", "Gabor", "Pasu", "EvolRef", "allnat", "all"]:
             for featlayer in [".layer2.Bottleneck3", ".layer3.Bottleneck5", ".layer4.Bottleneck2"]:
+                # factor regression
                 df = pd.read_csv(join(expdir, f"eval_predict_factreg-{featlayer}-{exptype}.csv"), index_col=(0,1))
                 df["Animal"] = Animal
                 df["Expi"] = Expi
                 df["factorreg"] = True
                 df_all = pd.concat([df_all, df], axis=0)
+                # penalized regression
                 df2 = pd.read_csv(join(expdir, f"eval_predict_{featlayer}-{exptype}.csv"), index_col=(0, 1))
                 df2["Animal"] = Animal
                 df2["Expi"] = Expi
@@ -87,6 +50,11 @@ df_all_reset = df_all.reset_index(inplace=False)
 df_all_reset["layer_s"] = df_all_reset.layer.apply(lambda s: s.split(".")[1])
 validmsk = ~((df_all_reset.Animal == "Alfa") & (df_all_reset.Expi == 10))
 #%%
+# Manif
+df_all_valid[(df_all_valid.img_space == "all") & \
+             (df_all_valid.FeatRed.str.contains("featvec3|spmask3|pca|srp"))].\
+    groupby(["layer_s", "FeatRed", 'regressor'], sort=False).\
+    rho_p.agg(["mean", "sem", "count"])
 #%%
 """Plot the method comparison for prediction in different image spaces. """
 imgspace = "allnat"
@@ -158,13 +126,16 @@ plt.legend()
 g.savefig(join(figdir, f"overall_prediction_synopsis_{imgspace}_R2.png"))
 plt.show()
 #%%
+"""
+Per experiment model comparison 
+"""
 import matplotlib
 massproduce = True
 matplotlib.use("Agg" if massproduce else 'module://backend_interagg') #
 #%%
 df_all = pd.read_csv(join(sumdir, "Combined_Penalize-FactorRegression_summary.csv"))
 df_all_reset = df_all.reset_index(inplace=False)
-df_all_reset["layer_s"] = df_all_reset.layer.apply(lambda s: s.split(".")[1])
+df_all_reset["layer_s"] = df_all_reset.layer.apply(lambda s: s.split(".")[1])  # short name for layer
 validmsk = ~((df_all_reset.Animal == "Alfa") & (df_all_reset.Expi == 10))
 #%% [markdown]
 """
@@ -221,9 +192,8 @@ for Animal in ["Alfa", "Beto"]:
             plt.tight_layout()
             g.savefig(join(figdir, f"prediction_comparison_factor_Trsp_{Animal}_{Expi:02d}_{featlayer}.png"))
             plt.show()
-#%%
 
-#%% Compare across the pref chan
+#%% Compare across the area / pref chan
 from scipy.io import loadmat
 mat_path = r"E:\OneDrive - Washington University in St. Louis\Mat_Statistics"
 """
@@ -254,20 +224,24 @@ df_sum = df_all_reset[(df_all_reset.img_space == "all") &
                      groupby(["Animal", "Expi", "layer_s"]).mean()
 df_sum.area = df_sum.prefchan.apply(chan2area)
 #%%
+"""Prediction accuracy as function of layer; across area`"""
 plt.figure(figsize=(8.5, 5.5))
 ax1 = plt.subplot(1, 3, 1)
-df_sum[df_sum.area=="V1"].unstack(level=(0, 1)).plot(y="rho_p", alpha=0.6, legend=False, ax=ax1)
+df_sum[df_sum.area == "V1"].unstack(level=(0, 1)).\
+    plot(y="rho_p", alpha=0.6, legend=False, ax=ax1)
 ax1.set_title("V1")
 ax2 = plt.subplot(1, 3, 2)
-df_sum[df_sum.area=="V4"].unstack(level=(0, 1)).plot(y="rho_p", alpha=0.6, legend=False, ax=ax2)
+df_sum[df_sum.area == "V4"].unstack(level=(0, 1)).\
+    plot(y="rho_p", alpha=0.6, legend=False, ax=ax2)
 ax2.set_title("V4")
 ax3 = plt.subplot(1, 3, 3)
-df_sum[df_sum.area=="IT"].unstack(level=(0, 1)).plot(y="rho_p", alpha=0.6, legend=False, ax=ax3)
+df_sum[df_sum.area == "IT"].unstack(level=(0, 1)).\
+    plot(y="rho_p", alpha=0.6, legend=False, ax=ax3)
 ax3.set_title("IT")
 plt.show()
 
 #%%
-""" The feature layer of best predicting method per experiment """
+""" Compute The feature layer of best predicting method per experiment """
 df_sum = df_all_reset[(df_all_reset.img_space == "allnat") &
              (df_all_reset.FeatRed == "spmask3") &
              (df_all_reset.regressor == "Ridge")].\
@@ -275,16 +249,18 @@ df_sum = df_all_reset[(df_all_reset.img_space == "allnat") &
 df_sum.area = df_sum.prefchan.apply(chan2area)
 performtab = df_sum["rho_p"].unstack(level=(0,1)).T
 maxlayer = performtab.idxmax(axis=1)
-maxidx = maxlayer.apply(lambda s:int(s[-1]))
-area_col = df_sum.area.unstack((0,1)).T["layer2"]
+maxidx = maxlayer.apply(lambda s: int(s[-1]))  # numerical index of the layer
+area_col = df_sum.area.unstack((0, 1)).T["layer2"]
 maxidxtab = pd.concat((maxidx, area_col), axis=1)
 maxidxtab.groupby("layer2").agg(["mean", 'sem', 'count'])
 
 #%%
+"""
+Plot the prototype of the best performing regression model in montage
+"""
 from build_montages import make_grid_np, crop_from_montage
 def row2filename(row):
     return f"{row.Animal}-Exp{row.Expi:02d}-{row.layer}-{row.FeatRed}-{row.regressor}_vis.png"
-
 
 outdir = join(rootdir, "summary\per_exp_best")
 for Animal in ["Alfa", "Beto"]:
@@ -305,3 +281,57 @@ for Animal in ["Alfa", "Beto"]:
         df_exp_excerpt.to_csv(join(outdir, f"{Animal}_{Expi:02d}_best_methods.csv"))
         plt.imsave(join(outdir, f"{Animal}_{Expi:02d}_best_methods_proto.png"), method_mtg)
         # raise Exception("")
+
+
+
+
+
+#%% Scratch zone
+#%% Collect results of each exp into a dataframe
+exptype = "all"
+df_all = pd.DataFrame()
+for Animal in ["Alfa", "Beto"]:
+    for Expi in range(1, 47):
+        if Animal == "Beto" and Expi == 46: continue
+        expdir = join(rootdir, f"{Animal}_{Expi:02d}")
+        for exptype in ["Evol", "Manif", "Gabor", "Pasu", "EvolRef", "allnat", "all"]:
+            for featlayer in [".layer2.Bottleneck3", ".layer3.Bottleneck5", ".layer4.Bottleneck2"]:
+                df = pd.read_csv(join(expdir, f"eval_predict_factreg-{featlayer}-{exptype}.csv"), index_col=(0,1))
+                df["Animal"] = Animal
+                df["Expi"] = Expi
+                df_all = pd.concat([df_all, df], axis=0)
+#%%
+df_all = df_all.set_index("layer", append=True).swaplevel(0,2)
+df_all = df_all.rename_axis(['layer', 'regressor', 'FeatRed'])
+df_all["layer_s"] = df_all.layer.apply(lambda s:s.split(".")[1])
+df_all.to_csv(join(sumdir, "Combined_FactorRegression_summary.csv"))
+
+df_all_reset = df_all.reset_index(inplace=False)
+validmsk = ~((df_all_reset.Animal == "Alfa") & (df_all_reset.Expi == 10))
+#%%
+validmsk = ~((df_all.Animal == "Alfa") & (df_all.Expi == 10))
+df_all[validmsk].groupby(level=(0, 1, 2)).agg(("mean","sem","count"))\
+    [["rho_p", "D2"]]
+#%% Factor grid plot
+g = sns.FacetGrid(df_all_reset[validmsk], col="img_space", row="regressor", hue="layer",
+                  height=5, aspect=0.75, ylim=(-0.2, 1.0),
+                  col_order=["all", "allnat", "Manif", "Gabor", "Pasu", "EvolRef", ])
+g.map(sns.barplot, "FeatRed", "rho_p",
+      order=["facttsr1", 'factor1', 'spmask1', 'featvec1',
+             'facttsr3', 'factor3', 'spmask3', 'featvec3'], )
+plt.suptitle(f"Compare Regression methods {Animal} {Expi:02d} {featlayer}")
+# g.savefig(join(figdir, f"prediction_comparison_{Animal}_{Expi:02d}_{featlayer}.png"))
+plt.show()
+#%%
+g = sns.FacetGrid(df_all_reset[validmsk & (df_all_reset.img_space == "allnat")],#Manif
+                  col="layer_s", row="regressor",
+                  height=5, aspect=0.75, ylim=(-0.2, 1.0),)
+g.map(sns.barplot, "FeatRed", "rho_p",
+      order=["facttsr1", 'factor1', 'spmask1', 'featvec1',
+             'facttsr3', 'factor3', 'spmask3', 'featvec3'], )
+plt.suptitle(f"Compare Regression methods all Expi, all layers, allnat image space", fontsize=14)
+g.set_xticklabels(rotation=30)
+g.set_titles(size=11)
+plt.tight_layout()
+# g.savefig(join(figdir, f"prediction_comparison_{Animal}_{Expi:02d}_{featlayer}.png"))
+plt.show()
