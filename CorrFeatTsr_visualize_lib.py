@@ -1,4 +1,11 @@
-"""Visualize the correlated units for a given evolution."""
+"""Visualize the correlated units for a given evolution.
+Basic building blocks of a feature visualization
+    CorrFeatScore: a Scorer or objective function based on neural network
+    corr_visualize: Visualize feature based on pixel parametrization
+    corr_GAN_visualize: Visualize feature based on GAN parametrization
+All these components are heavily used in higher level api in featvis_lib
+
+"""
 # Alias the disks for usage
 # !subst N: E:\Network_Data_Sync
 # !subst S: E:\Network_Data_Sync
@@ -44,9 +51,9 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                          'conv5_1', 'conv5_1_relu',
                          'conv5_2', 'conv5_2_relu',
                          'conv5_3', 'conv5_3_relu', 'pool5',
-                         'fc1', 'fc1_relu', 'dropout1',
-                         'fc2', 'fc2_relu', 'dropout2',
-                         'fc3'],
+                         'fc6', 'fc6_relu', 'dropout6',
+                         'fc7', 'fc7_relu', 'dropout7',
+                         'fc8'],
                 "densenet121":['conv1',
                                  'bn1',
                                  'bn1_relu',
@@ -59,16 +66,39 @@ layername_dict={"alexnet":["conv1", "conv1_relu", "pool1",
                                  'fc1'],
                 "resnet50": ["layer1", "layer2", "layer3", "layer4"]}
 
+# ensure compatibility with multiple versions of torch.
+if hasattr(torch, "norm"):
+    norm_torch = torch.norm
+    def norm_torch(tsr, dim=[], keepdim=False):
+        norms = (tsr ** 2).sum(dim=dim, keepdim=keepdim).sqrt()
+        return norms
+    
+elif hasattr(torch, "linalg"):
+    norm_torch = torch.linalg.norm
+else:
+    raise ModuleNotFoundError("Torch version non supported yet, check it. ")
+
+
 class CorrFeatScore:
+    """ Util class to compute a score from an image using pretrained model and read out matrix.
+
+    Use a fixed weight matrix (deduced by correlated features) to read out from features of a layer.
+    This score could be used as objective to visualize the model.
+    This score could also be used as activation prediction for other images.
+
+    Example:
+
+    """
     def __init__(self):
         self.feat_tsr = {}
         self.weight_tsr = {}
+        self.mask_tsr = {}
         self.weight_N = {}
         self.hooks = []
         self.layers = []
         self.scores = {}
         self.netname = None
-        self.mode = "dot"  # "corr"
+        self.mode = "dot"  # use dot product by default. This could work as linear model over features.
 
     def hook_forger(self, layer, grad=True):
         # this function is important, or layer will be redefined in the same scope!
@@ -87,7 +117,12 @@ class CorrFeatScore:
         for layer in layers:
             if netname in ["vgg16","alexnet"]:
                 layer_idx = layername_dict[netname].index(layer)
-                targmodule = net.features[layer_idx]
+                if layer_idx > 30:
+                    targmodule = net.classifier[layer_idx-31]
+                elif layer_idx < 30:
+                    targmodule = net.features[layer_idx]
+                else:
+                    targmodule = net.avgpool
             elif "resnet50" in netname: # in ["resnet50", "resnet50_linf"]:
                 targmodule = net.__getattr__(layer)
             else:
@@ -97,11 +132,14 @@ class CorrFeatScore:
             self.layers.append(layer)
         self.netname = netname
 
-    def register_weights(self, weight_dict):
+    def register_weights(self, weight_dict, mask_dict=None):
         for layer, weight in weight_dict.items():
             self.weight_tsr[layer] = torch.tensor(weight).float().cuda()
             self.weight_tsr[layer].requires_grad_(False)
             self.weight_N[layer] = (weight > 0).sum()
+            if mask_dict is not None and layer in mask_dict:
+                mask = mask_dict[layer]
+                self.mask_tsr[layer] = torch.tensor(mask, requires_grad=False).bool().cuda()
 
     def corrfeat_score(self, layers=None, Nnorm=True):
         if layers is None: layers = self.layers
@@ -109,15 +147,53 @@ class CorrFeatScore:
             layers = [layers]
         for layer in layers:
             acttsr = self.feat_tsr[layer]
-            if self.mode is "dot":
-                score = (self.weight_tsr[layer] * acttsr).sum(dim=[1, 2, 3])
+            if acttsr.ndim == 2: # fc layers
+                sumdims = [1]
+            elif acttsr.ndim == 4: # conv layers
+                sumdims = [1, 2, 3]
+            else:
+                raise ValueError
+
+            if self.mode == "dot":
+                if self.weight_tsr[layer].ndim == 4:
+                    # if multiple weight tensors are combined along the 0 dim, (Nweights, C, H, W)
+                    # we can compute scores for them all at once.
+                    # score will be of shape (B, Nweights)
+                    score = (acttsr.unsqueeze(-1) * self.weight_tsr[layer].permute([1, 2, 3, 0]) ).sum(dim=sumdims)
+                else:
+                    score = (self.weight_tsr[layer] * acttsr).sum(dim=sumdims)
                 if Nnorm: score = score / self.weight_N[layer]
-            elif self.mode is "corr":
+            elif self.mode == "MSE":
+                score = (self.weight_tsr[layer] - acttsr).pow(2).mean(dim=sumdims)
+            elif self.mode == "MSEmask":
+                score = torch.sum(self.mask_tsr[layer]*(self.weight_tsr[layer] - acttsr).pow(2), dim=sumdims) / \
+                        self.mask_tsr[layer].count_nonzero().float()#(~torch.isnan(self.weight_tsr[layer])).float().sum()
+            elif self.mode == "L1":
+                score = (self.weight_tsr[layer] - acttsr).abs().mean(dim=sumdims)
+            elif self.mode == "L1mask":
+                score = torch.sum(self.mask_tsr[layer]*(self.weight_tsr[layer] - acttsr).abs(), dim=sumdims) / \
+                        self.mask_tsr[layer].count_nonzero().float()
+            elif self.mode == "corr":
                 w_mean = self.weight_tsr[layer].mean()
                 w_std = self.weight_tsr[layer].std()
-                act_mean = acttsr.mean(dim=(1, 2, 3), keepdim=True)
-                act_std = acttsr.std(dim=(1, 2, 3), keepdim=True)
-                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=[1, 2, 3])
+                act_mean = acttsr.mean(dim=sumdims, keepdim=True)
+                act_std = acttsr.std(dim=sumdims, keepdim=True)
+                score = ((self.weight_tsr[layer] - w_mean) / w_std * (acttsr - act_mean) / act_std).mean(dim=sumdims)
+            elif self.mode == "cosine":
+                # w_norm = torch.linalg.norm(self.weight_tsr[layer])
+                # act_norm = torch.linalg.norm(acttsr, dim=sumdims, keepdim=True)
+                w_norm = norm_torch(self.weight_tsr[layer]) # .pow(2).sum().sqrt()
+                act_norm = norm_torch(acttsr, dim=sumdims, keepdim=True)
+                score = ((self.weight_tsr[layer] * acttsr) / w_norm / act_norm).sum(dim=sumdims) # validate
+            elif self.mode == "corrmask":
+                msk = self.mask_tsr[layer]
+                weightvec = self.weight_tsr[layer][msk]
+                w_mean = weightvec.mean()
+                w_std = weightvec.std()
+                actmat = acttsr[:, msk]
+                act_mean = actmat.mean(dim=1, keepdim=True)
+                act_std = actmat.std(dim=1, keepdim=True)
+                score = ((weightvec - w_mean) / w_std * (actmat - act_mean) / act_std).mean(dim=1)
             else:
                 raise NotImplementedError("Check `mode` of `scorer` ")
             self.scores[layer] = score
@@ -169,6 +245,9 @@ from GAN_utils import upconvGAN
 RGBmean = torch.tensor([0.485, 0.456, 0.406]).float().reshape([1,3,1,1])
 RGBstd = torch.tensor([0.229, 0.224, 0.225]).float().reshape([1,3,1,1])
 def save_imgtsr(finimgs, figdir:str ="", savestr:str =""):
+    """
+    finimgs: a torch tensor on cpu with shape B,C,H,W. 
+    """
     B = finimgs.shape[0]
     for imgi in range(B):
         ToPILImage()(finimgs[imgi,:,:,:]).save(join(figdir, "%s_%02d.png"%(savestr, imgi)))
@@ -182,21 +261,32 @@ def preprocess(img: torch.tensor):
     return img
 
 
-def corr_visualize(scorer, CNNnet, preprocess, layername,
-    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
-    """  """
+def compose(transforms):
+    def inner(x):
+        for transform in transforms:
+            x = transform(x)
+        return x
+
+    return inner
+
+
+def corr_visualize(scorer, CNNnet, preprocess, layername, tfms=[],
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
+    savestr="", figdir="", imshow=False, PILshow=False, verbose=True, saveimg=False, score_mode="dot", maximize=True):
+    """ similar to `corr_GAN_visualize` but search for preferred images in pixel space instead of GAN space. """
     scorer.mode = score_mode
+    score_sgn = -1 if maximize else 1
     x = 0.5+0.01*torch.rand((Bsize,3,imgfullpix,imgfullpix)).cuda()
     x.requires_grad_(True)
     optimizer = Adam([x], lr=lr) if use_adam else SGD([x], lr=lr)
+    tfms_f = compose(tfms)
     score_traj = []
     pbar = tqdm(range(MAXSTEP))
     for step in pbar:
         ppx = preprocess(x)
         optimizer.zero_grad()
-        CNNnet(ppx)
-        score = -scorer.corrfeat_score(layername)
+        CNNnet(tfms_f(ppx))
+        score = score_sgn * scorer.corrfeat_score(layername)
         score.sum().backward()
         x.grad = x.norm() / x.grad.norm() * x.grad
         optimizer.step()
@@ -205,18 +295,21 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
             # if > 0 then add noise to become Langevin gradient descent jump minimum
             x.data.add_(torch.randn(x.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in -score)))
-        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+            print("step %d, score %s"%(step, " ".join("%.1f"%s for s in score_sgn * score)))
+        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
 
-    final_score = -score.detach().clone().cpu()
+    final_score = score_sgn * score.detach().clone().cpu()
     del score
     torch.cuda.empty_cache()
-    idx = torch.argsort(final_score, descending=True)
-    score_traj = -torch.stack(tuple(score_traj))[:, idx]
+    if maximize:
+        idx = torch.argsort(final_score, descending=True)
+    else:
+        idx = torch.argsort(final_score, descending=False)
+    score_traj = score_sgn * torch.stack(tuple(score_traj))[:, idx]
     finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
     mtg = ToPILImage()(make_grid(finimgs))
-    mtg.show()
+    if PILshow: mtg.show()
     mtg.save(join(figdir, "%s_pix_%s.png"%(savestr, layername)))
     np.savez(join(figdir, "%s_pix_%s.npz"%(savestr, layername)), score_traj=score_traj.numpy())
     if imshow:
@@ -226,18 +319,23 @@ def corr_visualize(scorer, CNNnet, preprocess, layername,
         plt.show()
     if saveimg:
         os.makedirs(join(figdir, "img"), exist_ok=True)
-        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        if saveImgN is None:
+            save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        else:
+            save_imgtsr(finimgs[:saveImgN,:,:,:], figdir=join(figdir, "img"), savestr="%s"%(savestr))
     return finimgs, mtg, score_traj
 
 
-def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, 
-    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, use_adam=True, langevin_eps=0, 
-    savestr="", figdir="", imshow=False, verbose=True, saveimg=False, score_mode="dot"):
+def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername, tfms=[],
+    lr=0.01, imgfullpix=224, MAXSTEP=100, Bsize=4, saveImgN=None, use_adam=True, langevin_eps=0, 
+    savestr="", figdir="", imshow=False, PILshow=False, verbose=True, saveimg=False, score_mode="dot", maximize=True):
     """ Visualize the features carried by the scorer.  """
     scorer.mode = score_mode
+    score_sgn = -1 if maximize else 1
     z = 0.5*torch.randn([Bsize, 4096]).cuda()
     z.requires_grad_(True)
     optimizer = Adam([z], lr=lr) if use_adam else SGD([z], lr=lr)
+    tfms_f = compose(tfms)
     score_traj = []
     pbar = tqdm(range(MAXSTEP))
     for step in pbar:
@@ -245,8 +343,8 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
         ppx = preprocess(x)
         ppx = F.interpolate(ppx, [imgfullpix, imgfullpix], mode="bilinear", align_corners=True)
         optimizer.zero_grad()
-        CNNnet(ppx)
-        score = -scorer.corrfeat_score(layername)
+        CNNnet(tfms_f(ppx))
+        score = score_sgn * scorer.corrfeat_score(layername)
         score.sum().backward()
         z.grad = z.norm(dim=1, keepdim=True) / z.grad.norm(dim=1, keepdim=True) * z.grad  # this is a gradient normalizing step 
         optimizer.step()
@@ -255,18 +353,21 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
             # if > 0 then add noise to become Langevin gradient descent jump minimum
             z.data.add_(torch.randn(z.shape, device="cuda") * langevin_eps)
         if verbose and step % 10 == 0:
-            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
-        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in -score)))
+            print("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
+        pbar.set_description("step %d, score %s"%(step, " ".join("%.2f" % s for s in score_sgn * score)))
 
-    final_score = -score.detach().clone().cpu()
+    final_score = score_sgn * score.detach().clone().cpu()
     del score
     torch.cuda.empty_cache()
-    idx = torch.argsort(final_score, descending=True)
-    score_traj = -torch.stack(tuple(score_traj))[:, idx]
+    if maximize:
+        idx = torch.argsort(final_score, descending=True)
+    else:
+        idx = torch.argsort(final_score, descending=False)
+    score_traj = score_sgn * torch.stack(tuple(score_traj))[:, idx]
     finimgs = x.detach().clone().cpu()[idx, :, :, :]  # finimgs are generated by z before preprocessing.
     print("Final scores %s"%(" ".join("%.2f" % s for s in final_score[idx])))
     mtg = ToPILImage()(make_grid(finimgs))
-    mtg.show()
+    if PILshow: mtg.show()
     mtg.save(join(figdir, "%s_G_%s.png"%(savestr, layername)))
     np.savez(join(figdir, "%s_G_%s.npz"%(savestr, layername)), z=z.detach().cpu().numpy(), score_traj=score_traj.numpy())
     if imshow:
@@ -276,7 +377,12 @@ def corr_GAN_visualize(G, scorer, CNNnet, preprocess, layername,
         plt.show()
     if saveimg:
         os.makedirs(join(figdir, "img"), exist_ok=True)
-        save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        if saveImgN is None:
+            save_imgtsr(finimgs, figdir=join(figdir, "img"), savestr="%s"%(savestr))
+        else:
+            save_imgtsr(finimgs[:saveImgN,:,:,:], figdir=join(figdir, "img"), savestr="%s"%(savestr))
+            mtg_sel = ToPILImage()(make_grid(finimgs[:saveImgN,:,:,:]))
+            mtg_sel.save(join(figdir, "%s_G_%s_best.png" % (savestr, layername)))
     return finimgs, mtg, score_traj
 
 #%%
@@ -314,7 +420,7 @@ if __name__ == "__main__":
     Animal = "Beto"
     Expi = 11
     # for Expi in range(27,46+1):
-    D = np.load(join(r"S:\corrFeatTsr","%s_Exp%d_EM_corrTsr.npz"%(Animal,Expi)), allow_pickle=True)
+    D = np.load(join(r"S:\corrFeatTsr", "%s_Exp%d_EM_corrTsr.npz" % (Animal, Expi)), allow_pickle=True)
     scorer = CorrFeatScore()
     scorer.load_from_npy(D, VGG, netname="vgg16", thresh=4, layers=[])
     img = ReprStats[Expi-1].Evol.BestBlockAvgImg

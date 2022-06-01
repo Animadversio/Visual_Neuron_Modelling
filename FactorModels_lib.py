@@ -45,6 +45,7 @@ lpls_ftr = torch.tensor([[ 0, -1,  0],
                          [-1,  4, -1],
                          [ 0, -1,  0]]).reshape(1,1,3,3).float().cuda()
 
+
 def spatial_regularizer(tsr):
     """Compute regularization term for a tensor with spatial dimensions
     tsr: a 2d, 3d or 4d array """
@@ -56,6 +57,7 @@ def spatial_regularizer(tsr):
     # the groups enforce the same filter applied to each channel independently. 
     lpls_energy = torch.sqrt(F.conv2d(tsr, lpls_ftr, ).pow(2).mean())
     return lpls_energy
+
 
 class FactorRegr_Machine(nn.Module):
     """The machinery to hook up a layer in CNN and to perform online regression of scores onto the activations of that layer. 
@@ -378,6 +380,7 @@ def summary_param(param, name=""):
         print("Weight %s: avg_amp %.e norm %.e max %.e \tGrad: avg_amp %.e norm %.e max %.e (shape %s)" % \
             (name, W_m, W_norm, W_max, G_m, G_norm, G_max, list(sz)))
 
+
 def inspect_model_weights(featFetcher):
     for layer in featFetcher.feat_trans:
         print("Factor model Layer %s"%layer)
@@ -410,6 +413,7 @@ def predict_cmp(featNet, featFetcher, scorevec, imgfps, imgloader=loadimg_prepro
     featFetcher.record_summary()
     return featFetcher.full_predtsr.copy()
 
+
 def visualize_featmasks(featFetcher, borderclip=1, savedir="", savenm=""):
     bdr = borderclip
     Nlayer = len(featFetcher.featmaps)
@@ -423,6 +427,7 @@ def visualize_featmasks(featFetcher, borderclip=1, savedir="", savenm=""):
             plt.colorbar()
     plt.savefig(join(savedir, "%s_featmaps.png"%savenm))
     plt.show()
+
 #%%
 if __name__ == "__main__":
     import os

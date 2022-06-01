@@ -1,11 +1,14 @@
-"""A library of functions to do correlation feature analysis
+"""A library of functions to do correlation feature analysis,
+esp. the first step, compute the correlation tensor online. 
+
 Core machinery:
-    Corr_Feat_Machine, to compute correlation online
+    Corr_Feat_Machine: a class designed to compute correlation tensors online
 Visualizing masks from `Corr_Feat_Machine`
     visual_cctsr
     visualize_cctsr_embed
 Full pipeline
-    ???, for given network, list of layers, list of pairs of input and output, do correlation feature analysis
+    Corr_Feat_pipeline: for given network, list of layers, list of pairs of input and output, do correlation feature analysis
+
 """
 from os.path import join
 import matplotlib.pylab as plt
@@ -56,7 +59,8 @@ layername_dict = {"alexnet":["conv1", "conv1_relu", "pool1",
 
 
 class Corr_Feat_Machine:
-    """The machinery to hook up a layer in CNN and to compute correlation online with certain output
+    """
+    The machinery to hook up a layer in CNN and to compute correlation online with certain output
     """
     def __init__(self):
         self.feat_tsr = {}
@@ -74,10 +78,10 @@ class Corr_Feat_Machine:
         self.cctsr = defaultdict(lambda: None)
         self.Ttsr = defaultdict(lambda: None)
 
-    def hook_forger(self, layer):
+    def hook_forger(self, layer, verbose=True):
         # this function is important, or layer will be redefined in the same scope!
         def activ_hook(module, fea_in, fea_out):
-            print("Extract from hooker on %s" % module.__class__)
+            if verbose: print("Extract from hooker on %s" % module.__class__)
             ref_feat = fea_out.detach().clone().cpu()
             ref_feat.requires_grad_(False)
             self.feat_tsr[layer] = ref_feat
@@ -85,7 +89,7 @@ class Corr_Feat_Machine:
 
         return activ_hook
 
-    def register_hooks(self, net, layers, netname="vgg16"):
+    def register_hooks(self, net, layers, netname="vgg16", verbose=True):
         if isinstance(layers, str):
             layers = [layers]
 
@@ -97,7 +101,7 @@ class Corr_Feat_Machine:
                 targmodule = net.__getattr__(layer)
             else:
                 raise NotImplementedError
-            actH = targmodule.register_forward_hook(self.hook_forger(layer))
+            actH = targmodule.register_forward_hook(self.hook_forger(layer, verbose=verbose))
             self.hooks.append(actH)
             self.layers.append(layer)
 
@@ -189,8 +193,8 @@ class Corr_Feat_Machine:
 
 
 #%%
-def visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, Titstr, figdir=""):
-    """
+def visualize_cctsr(featFetcher: Corr_Feat_Machine, layers2plot: list, ReprStats, Expi, Animal, ExpType, Titstr, figdir=""):
+    """ Given a `Corr_Feat_Machine` show the tensors in the different layers of it. 
     Demo
     ExpType = "EM_cmb"
     layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
@@ -230,8 +234,9 @@ def visualize_cctsr(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, 
     figh.savefig(join(figdir, "%s_Exp%d_%s_corrTsr_vis.pdf" % (Animal, Expi, ExpType)))
     return figh
 
+
 def visualize_cctsr_embed(featFetcher, layers2plot, ReprStats, Expi, Animal, ExpType, Titstr, figdir="", imgpix=120, fullimgsz=224, borderblur=True):
-    """
+    """ Same as `visualize_cctsr` but embed the images in a frame
     Demo
     ExpType = "EM_cmb"
     layers2plot = ['conv3_3', 'conv4_3', 'conv5_3']
@@ -289,7 +294,12 @@ def visualize_cctsr_embed(featFetcher, layers2plot, ReprStats, Expi, Animal, Exp
 
 #%%
 from tqdm import tqdm
-def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_func, online_compute=True, batchsize=121, savedir="S:\corrFeatTsr", savenm="Evol"):
+def Corr_Feat_pipeline(net, featFetcher, score_vect, imgfullpath_vect, imgload_func, 
+        online_compute=True, batchsize=121, savedir="S:\corrFeatTsr", savenm="Evol"):
+    """The pipeline to compute Correlation Tensor for a bunch of images and reponses.
+    The correlation results will be saved in savedir, "{savenm}_corrTsr.npz"
+
+    """
     imgN = len(imgfullpath_vect)
     if type(score_vect) is not list:
         score_tsr = torch.tensor(score_vect).float()  # torchify the score vector
@@ -329,20 +339,25 @@ preprocess = transforms.Compose([transforms.ToTensor(),
 def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False):
     """Prepare the input image batch!
     Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution.
-    INput: list of image full path
-    Output: 4d image tensor ready for torch network to process
+    :parameter
+        imgfullpath: list of image full path
+
+    :return:
+        4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part
         curimg = imread(img_path)
         if curimg.ndim == 2:  # curimg.shape[2] == 1 or
             curimg = np.repeat(curimg[:, :, np.newaxis], 3, axis=2) #FIXED Apr.25th 1,3 channel image
+        elif curimg.shape[2] == 4:  # curimg.shape[2] == 1 or
+            curimg = curimg[:, :, :3]
         x = preprocess(curimg).unsqueeze(0)
         x = F.interpolate(x, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
         ppimgs.append(x)
     input_tsr = torch.cat(tuple(ppimgs), dim=0)
     # input_tsr = median_blur(input_tsr, (3, 3)) # this looks good but very slow, no use
-    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3, 3))
+    input_tsr = gaussian_blur2d(input_tsr, (5, 5), sigma=(3.0, 3.0))
     input_tsr = F.interpolate(input_tsr, size=[imgpix, imgpix], align_corners=True, mode='bilinear')
     input_tsr = F.interpolate(input_tsr, size=[fullimgsz, fullimgsz], align_corners=True, mode='bilinear')
     if borderblur:
@@ -351,7 +366,7 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
         msk = torch.ones([fullimgsz - 2 * border, fullimgsz - 2 * border])
         msk = F.pad(msk, [border, border, border, border], mode="constant", value=0)
         blurmsk = (1 - msk).reshape([1, 1, fullimgsz, fullimgsz]);
-        blurmsk_trans = gaussian_blur2d(blurmsk, (5, 5), sigma=(3, 3))
+        blurmsk_trans = gaussian_blur2d(blurmsk, (5, 5), sigma=(3.0, 3.0))
         # bkgrdtsr = gaussian_blur2d(input_tsr*blurmsk, (5, 5), sigma=(3, 3))
         final_tsr = bkgrd_tsr * blurmsk_trans + input_tsr * (1 - blurmsk_trans)
         final_tsr = (final_tsr - RGBmean) / RGBstd
@@ -359,11 +374,16 @@ def loadimg_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=False)
     else:
         return input_tsr
 
+
 def loadimg_embed_preprocess(imgfullpath, imgpix=120, fullimgsz=224, borderblur=True):
     """Prepare the input image batch!
-    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution, put the image embedded in a gray background.
-    INput: list of image full path
-    Output: 4d image tensor ready for torch network to process
+    Load the image, cat as 4d tensor, blur the image to get rid of high freq noise, interpolate to certain resolution,
+    put the image embedded in a gray background. (modified from loadimg_preprocess)
+    :parameter
+        imgfullpath: list of image full path
+
+    :return:
+        4d image tensor ready for torch network to process
     """
     ppimgs = []
     for img_path in (imgfullpath):  # should be taken care of by the CNN part

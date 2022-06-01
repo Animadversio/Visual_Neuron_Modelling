@@ -1,7 +1,9 @@
+"""Really well structured script for testing pixel objectiveness of the feature xx selects for."""
 import sys
 from os.path import join
 import matplotlib.pylab as plt
 import numpy as np
+import numpy.ma as ma
 import pandas as pd
 import seaborn as sns
 from scipy.io import loadmat
@@ -112,12 +114,14 @@ def compare_maps(corrmap, probmap, thresh=0.5, namestr="", suffix=""):
         S[varnm+suffix] = eval(varnm)
     return S
 
+
 def IoU(mask1, mask2):
     """Simple stats to compare 2 binary mask Intersect Over Union"""
     maskIntersect = np.logical_and(mask1,mask2)
     maskUnion = np.logical_or(mask1,mask2)
     IoU = np.nansum(maskIntersect) / np.nansum(maskUnion)
     return IoU
+
 
 def compare_objmsk(corrmap, objectmask, thresh=0.5, namestr="", suffix=""):
     """Compare correlation map and objective masks"""
@@ -268,3 +272,51 @@ plt.show()
 visualize_msks([RFinterpMap_merge_rsz]+list(maps_RFinterp_rsz.values()))
 #%%
 
+#%% Compare the Correlated Feature Mask with the
+ccdir = "S:\corrFeatTsr"
+figdir = r"O:\ProtoObjectivenss\summary"
+mat_path = r"O:\Mat_Statistics"
+outlabel = "NMF_Wmsk"
+Scol = []
+for Animal in ["Alfa", "Beto"]:
+    # Load summary stats for each animal
+    EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
+    ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
+    for Expi in range(1, len(EStats)+1):
+        imgsize = EStats[Expi - 1].evol.imgsize
+        imgpos = EStats[Expi - 1].evol.imgpos
+        pref_chan = EStats[Expi - 1].evol.pref_chan
+        metadict = {"Animal":Animal, "Expi":Expi, "imgsize":imgsize, "imgpos":imgpos, "pref_chan":pref_chan}
+        imgpix = int(imgsize * 40)
+        titstr = "%s Exp %d Driver Chan %d, %.1f deg [%s]" % (Animal, Expi, pref_chan, imgsize, tuple(imgpos))
+        print(titstr)
+        img = ReprStats[Expi-1].Evol.BestBlockAvgImg
+        imgtsr = torch.from_numpy(img).float().permute([2,0,1]).unsqueeze(0)
+        imgtsr_pp = gaussian_blur2d(imgtsr, (5, 5), (3,3))
+        objmap = PNet(imgtsr_pp.cuda(), fullmap=True).cpu()
+        objmsk = (objmap[:, 0, :, :] < objmap[:, 1, :, :]).numpy()[0]
+        probmap_rel = (objmap[:, 1, :, :] - objmap[:, 0, :, :]).numpy()[0]
+        probmap = objmap[:, 1, :, :].numpy()[0]
+        probmap_fg = np.copy(probmap)
+        probmap_fg[~objmsk] = 0.0
+        D = np.load(join(ccdir, "%s_Exp%d_Evol_nobdr_corrTsr.npz" % (Animal, Expi)),
+                    allow_pickle=True)
+        maps = calc_map_from_tensors(D)
+        # layernm = "conv5_3"
+        # corrmap = maps.mean_rsz[layernm]
+        # layernm = "conv_merged"
+        # corrmap = merge_msks(list(maps.mean_rsz.values()), weights=None)
+        layernm = "conv_RfIntpMerged"
+        maps_RFintp, RFintpMap_merge, maps_RFintp_rsz, RFintpMap_merge_rsz = RFinterp_map(maps.mean)
+        corrmap = RFintpMap_merge_rsz
+        S_IoU = compare_objmsk(corrmap, objmsk, thresh=0.5, namestr="%s vs object mask"%layernm)
+        S = compare_maps(corrmap, probmap, namestr="%s vs prob"%layernm)
+        S_fg = compare_maps(corrmap, probmap_rel, namestr="%s vs fg"%layernm, suffix="_fg")#probmap)
+        S_cnt = compare_maps(corrmap[16:-16, 16:-16], probmap[16:-16, 16:-16], namestr="%s vs prob"%layernm, suffix="_cnt")
+        figh = visualize_msks([img, corrmap, probmap], label_list=["img", "corrmap", "probmap"], titstr=titstr+" cent corr%.3f"%S_cnt.rval_cnt)
+        figh.savefig(join(figdir, "%s_Exp%02d_objcorrmask_%s_cmp.png"%(Animal, Expi,outlabel)))
+        Stot = dict_union(metadict, S_IoU, S, S_fg, S_cnt)
+        Scol.append(Stot)
+#%% Summary statistics
+Both_df = pd.DataFrame(Scol)
+Both_df.to_csv(join(figdir, "obj_corrmsk_%s_cmp.csv"%outlabel))

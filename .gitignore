@@ -8,3 +8,8 @@
 .idea/*
 alexnet/__pycache__/caffe_classes.cpython-37.pyc
 *.pyc
+ImageModels-master/*
+*.npz
+*.npy
+*.png
+*.pdf

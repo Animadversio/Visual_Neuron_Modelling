@@ -1,4 +1,9 @@
-"""Newer API for data loading. for older one see load_neural_data"""
+"""
+Newer API for data loading for Evolution, Manifold dataset.
+Using the already formulated EStats and MStats structs from .mat files.
+
+for older one loading from full exp record see load_neural_data.
+"""
 import os
 from os.path import join
 import shutil
@@ -12,13 +17,31 @@ Gaborpath = r"N:\Stimuli\2019-Manifold\gabor"
 #%% Load full path to images and psths
 def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"):
     """
+    Unified interface to load image, response pair for Evolution, Manifold experiment pair. 
 
-    :param EStats:
-    :param MStats:
-    :param Expi:
-    :param ExpType:
-    :param wdws:
-    :return:
+    :param EStats: loaded saved mat struct. 
+        EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
+    :param MStats: loaded saved mat struct. 
+        MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
+    :param Expi: Int. Experiment id, number start from 1. 
+    :param ExpType: A string from these options ["Evol", "Manif_avg", "Manif_sgtr", 
+        "EvolRef_avg", "EvolRef_sgtr", "Gabor_avg", "Gabor_sgtr", "Pasu_avg", "Pasu_sgtr"]
+        ExpType containing `sgtr` will return scores in `scorecol` format 
+        ExpType containing `avg` will return scores in `score_vect` format 
+
+    :param wdws: a list of tuple. Not implemented yet. used to specify the window to define the scores. 
+    :param stimdrive: "N", "S" etc. the drive to load the stimuli images. 
+
+
+    :return: Two types of return format. 
+        score_vect, imgfullpath_vect
+        or 
+        scorecol, imgfullpath_vect
+        
+        score_vect: np float 1d array of scores. Same length as `imgfullpath_vect`. 
+        scorecol: a list of list of scores, each list is the score in each trial for an image. 
+            Same length as `imgfullpath_vect`. 
+        imgfullpath_vect: a list of string of full path to the images. can be loaded via imread. 
 
     Example code
     ```
@@ -93,7 +116,8 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             nunit = np.alen(MStats[Expi - 1].units.pref_chan_id)  # use alen instead of len to get len(10) work
             psth = MStats[Expi - 1].ref.gab_psths.reshape(-1)
             idx_vect = MStats[Expi - 1].ref.gab_idx_grid.reshape([-1])
-            validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            # validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            validmsk = [(np.isscalar(I) or len(I) != 0) for I in idx_vect]  # newer version, without np.alen
             psth, idx_vect = psth[validmsk], idx_vect[validmsk]
             psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
             scorecol = [np.mean(P[ui - 1, 50:200, :], axis=0).astype(np.float) for P in psthlist]  # avg over time
@@ -117,7 +141,8 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             nunit = np.alen(MStats[Expi - 1].units.pref_chan_id)  # use alen instead of len to get len(10) work
             psth = MStats[Expi - 1].ref.pasu_psths.reshape(-1)
             idx_vect = MStats[Expi - 1].ref.pasu_idx_grid.reshape([-1])
-            validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            # validmsk = [np.alen(I) != 0 for I in idx_vect]  # get rid of invalid entries
+            validmsk = [(np.isscalar(I) or len(I) != 0) for I in idx_vect]  # newer version, without np.alen
             psth, idx_vect = psth[validmsk], idx_vect[validmsk]
             psthlist = list(np.reshape(P, [nunit, 200, -1]) for P in psth)
             scorecol = [np.mean(P[ui - 1, 50:200, :], axis=0).astype(np.float) for P in psthlist]  # avg over time
@@ -135,6 +160,7 @@ def load_score_mat(EStats, MStats, Expi, ExpType, wdws=[(50,200)], stimdrive="N"
             return scorecol, imgfullpath_vect
 
 def test_load_score_mat(DRIVE="S"):
+    """Test all files (esp. image stimuli are loadable.)"""
     missing_fns = []
     def record_missing(imgfullpaths):
         for pth in imgfullpaths:

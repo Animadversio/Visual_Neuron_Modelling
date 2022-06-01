@@ -1,5 +1,5 @@
 
-from CorrFeatTsr_visualize import CorrFeatScore, corr_GAN_visualize, corr_visualize
+from CorrFeatTsr_visualize_lib import CorrFeatScore, corr_GAN_visualize, corr_visualize
 from featvis_lib import vis_featvec, vis_feattsr, load_featnet, score_images, fitnl_predscore, vis_feattsr_factor, \
     rectify_tsr, tsr_factorize, vis_featvec_point, vis_featvec_wmaps
 import numpy as np
