@@ -489,7 +489,7 @@ if __name__ == "__main__":
     ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
     show_img(ReprStats[Expi-1].Manif.BestImg)
     #%%
-    figroot = "E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis"
+    figroot = r"E:\OneDrive - Washington University in St. Louis\corrFeatTsr_FactorVis"
     figdir = join(figroot, "%s_Exp%02d"%(Animal, Expi))
     os.makedirs(figdir, exist_ok=True)
     #%%
