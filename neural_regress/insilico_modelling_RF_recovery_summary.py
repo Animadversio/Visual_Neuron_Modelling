@@ -28,6 +28,9 @@ df_all.groupby(["layer", "sublayer", "featred"])["cval", "cval_fit", "iou"].agg(
 #%%
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams["pdf.fonttype"] = 42
+mpl.rcParams["ps.fonttype"] = 42
 #%%
 figdir = join(rootdir, "summary_figs")
 os.makedirs(figdir, exist_ok=True)
@@ -35,10 +38,48 @@ os.makedirs(figdir, exist_ok=True)
 # plt.show()
 df_all.to_csv(join(figdir, "all_target_summary.csv"))
 #%%
-for yval in ["cval", "cval_fit","iou"]:
+for yval in ["cval", "cval_fit", "iou"]:
     sns.FacetGrid(df_all, col="layer", row="sublayer", hue="regressor", size=5).map(sns.barplot, "featred", yval, alpha=0.4).add_legend()
     plt.savefig(join(figdir, f"{yval}_bar_by_layer-sublayer.png"))
     plt.savefig(join(figdir, f"{yval}_bar_by_layer-sublayer.pdf"))
     plt.show()
 #%%
+for yval in ["cval", "cval_fit", "iou"]:
+    g = sns.FacetGrid(df_all, col="layer", row="sublayer", hue="regressor",
+                      size=5, palette="Set2", )
+    g.map(sns.barplot, "featred", yval, alpha=0.4, dodge=True,
+          order=['spmask3', 'featvec3', 'factor3', 'pca', 'srp']).add_legend()
+    # plt.savefig(join(figdir, f"{yval}_bar_by_layer-sublayer.png"))
+    # plt.savefig(join(figdir, f"{yval}_bar_by_layer-sublayer.pdf"))
+    plt.show()
+    raise Exception("stop")
+#%%
+for yval in ["cval", ]: # "cval_fit", "iou"
+    g = sns.FacetGrid(df_all, col="layer", row="sublayer", hue="regressor", size=5)
+    g.map(sns.barplot, "featred", yval, alpha=0.4).add_legend()
+    plt.savefig(join(figdir, f"{yval}_pnt_by_layer-sublayer-part1.pdf"))
+    plt.show()
+    g = sns.FacetGrid(df_all, col="layer", row="sublayer", size=5)
+    g.map(sns.stripplot, "featred", yval, "regressor", alpha=0.4, palette="Set2", ).add_legend()
+    # g = g.map(sns.stripplot, "featred", yval, "regressor", alpha=0.4).add_legend()
+    g.set(ylim=(-0.1, 1.0))
+    # plt.savefig(join(figdir, f"{yval}_pnt_by_layer-sublayer-part2.png"))
+    plt.savefig(join(figdir, f"{yval}_pnt_by_layer-sublayer-part2.pdf"))
+    plt.show()
+#%%
+for yval in ["cval", "cval_fit", "iou"]: #
+    g = sns.FacetGrid(df_all, col="layer", row="sublayer", size=5)
+    g.map(sns.stripplot, "featred", yval, "regressor", alpha=0.6, palette="Set2", dodge=True, ).add_legend()
+    g.map(sns.pointplot, "featred", yval, "regressor", alpha=0.6, palette="Set2", dodge=True, join=True).add_legend()
+    g.set(ylim=(-0.1, 1.0))
+    plt.savefig(join(figdir, f"{yval}_strip_by_layer-sublayer.png"))
+    plt.savefig(join(figdir, f"{yval}_strip_by_layer-sublayer.pdf"))
+    plt.show()
 
+
+
+#%%
+plt.figure(figsize=(10,10))
+# sns.pointplot(data=df_all, x="featred", y=yval)
+sns.stripplot(data=df_all, x="featred", y=yval, hue="regressor", alpha=0.4)
+plt.show()

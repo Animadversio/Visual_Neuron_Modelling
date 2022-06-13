@@ -145,21 +145,117 @@ sumdir = join(outdir, "summary")
 os.makedirs(outdir, exist_ok=True)
 targetlayer = ".layer3.Bottleneck5"
 targetunit = (10, 3, 3)
+#%%
+matplotlib.use("Agg") # 'module://backend_interagg'
+#%%
+from torch_utils import show_imgrid, save_imgrid
+from grad_RF_estim import GAN_grad_RF_estimate
 for (targetunit, targetlayer) in [
                                   # ((10, 9, 9), ".layer3.Bottleneck5"),
                                   # ((20, 9, 3), ".layer3.Bottleneck5"),
                                   # ((15, 3, 10), ".layer3.Bottleneck5"),
                                   # ((15, 3, 6), ".layer3.Bottleneck1"),
                                   # ((15, 10, 6), ".layer2.Bottleneck2"),
-                                  ((5, 6, 6), ".layer4.Bottleneck0"),
-                                  ((5, 3, 3), ".layer4.Bottleneck1"),
-                                  ((5, 3, 6), ".layer4.Bottleneck0"),
-                                  ((5, 6, 3), ".layer4.Bottleneck1"),
-                                  ((5, 2, 3), ".layer4.Bottleneck2"),
-                                  ((5, 6, 3), ".layer4.Bottleneck2"),
-                                  ((5, 10, 4), ".layer3.Bottleneck3"),
-                                  ((5, 3, 4), ".layer3.Bottleneck3"),
-                                  ((5, 14, 7), ".layer2.Bottleneck3"),]:
+                                  # ((5, 6, 6), ".layer4.Bottleneck0"),
+                                  # ((5, 3, 3), ".layer4.Bottleneck1"),
+                                  # ((5, 3, 6), ".layer4.Bottleneck0"),
+                                  # ((5, 6, 3), ".layer4.Bottleneck1"),
+                                  # ((5, 2, 3), ".layer4.Bottleneck2"),
+                                  # ((5, 6, 3), ".layer4.Bottleneck2"),
+                                  # ((5, 10, 4), ".layer3.Bottleneck3"),
+                                  # ((5, 3, 4), ".layer3.Bottleneck3"),
+                                  # ((5, 14, 7), ".layer2.Bottleneck3"),
+                                #
+                                # ((25, 3, 3), ".layer3.Bottleneck5"),
+                                # ((25, 3, 10), ".layer3.Bottleneck5"),
+                                # ((25, 10, 3), ".layer3.Bottleneck5"),
+                                # ((25, 10, 10), ".layer3.Bottleneck5"),
+                                # ((25, 7, 7), ".layer3.Bottleneck5"),
+                                # ((25, 3, 7), ".layer3.Bottleneck5"),
+                                # ((25, 10, 7), ".layer3.Bottleneck5"),
+                                # ((25, 7, 3), ".layer3.Bottleneck5"),
+                                # ((25, 7, 10), ".layer3.Bottleneck5"),
+                                # #
+                                # ((25, 3, 3), ".layer3.Bottleneck3"),
+                                # ((25, 3, 10), ".layer3.Bottleneck3"),
+                                # ((25, 10, 3), ".layer3.Bottleneck3"),
+                                # ((25, 10, 10), ".layer3.Bottleneck3"),
+                                # ((25, 7, 7), ".layer3.Bottleneck3"),
+                                # ((25, 3, 7), ".layer3.Bottleneck3"),
+                                # ((25, 10, 7), ".layer3.Bottleneck3"),
+                                # ((25, 7, 3), ".layer3.Bottleneck3"),
+                                # ((25, 7, 10), ".layer3.Bottleneck3"),
+                                #
+                                ((25, 3, 3), ".layer3.Bottleneck1"),
+                                ((25, 3, 10), ".layer3.Bottleneck1"),
+                                ((25, 10, 3), ".layer3.Bottleneck1"),
+                                ((25, 10, 10), ".layer3.Bottleneck1"),
+                                ((25, 7, 7), ".layer3.Bottleneck1"),
+                                ((25, 3, 7), ".layer3.Bottleneck1"),
+                                ((25, 10, 7), ".layer3.Bottleneck1"),
+                                ((25, 7, 3), ".layer3.Bottleneck1"),
+                                ((25, 7, 10), ".layer3.Bottleneck1"),
+                                # #
+                                # ((15, 5, 5), ".layer2.Bottleneck3"),
+                                # ((15, 5, 23), ".layer2.Bottleneck3"),
+                                # ((15, 23, 5), ".layer2.Bottleneck3"),
+                                # ((15, 23, 23), ".layer2.Bottleneck3"),
+                                # ((15, 13, 13), ".layer2.Bottleneck3"),
+                                # ((15, 5, 13), ".layer2.Bottleneck3"),
+                                # ((15, 23, 13), ".layer2.Bottleneck3"),
+                                # ((15, 13, 5), ".layer2.Bottleneck3"),
+                                # ((15, 13, 23), ".layer2.Bottleneck3"),
+                                # ## #
+                                ((15, 5, 5), ".layer2.Bottleneck1"),
+                                ((15, 5, 23), ".layer2.Bottleneck1"),
+                                ((15, 23, 5), ".layer2.Bottleneck1"),
+                                ((15, 23, 23), ".layer2.Bottleneck1"),
+                                ((15, 13, 13), ".layer2.Bottleneck1"),
+                                ((15, 5, 13), ".layer2.Bottleneck1"),
+                                ((15, 23, 13), ".layer2.Bottleneck1"),
+                                ((15, 13, 5), ".layer2.Bottleneck1"),
+                                ((15, 13, 23), ".layer2.Bottleneck1"),
+                                # #
+                                ((15, 5, 5), ".layer2.Bottleneck2"),
+                                ((15, 5, 23), ".layer2.Bottleneck2"),
+                                ((15, 23, 5), ".layer2.Bottleneck2"),
+                                ((15, 23, 23), ".layer2.Bottleneck2"),
+                                ((15, 13, 13), ".layer2.Bottleneck2"),
+                                ((15, 5, 13), ".layer2.Bottleneck2"),
+                                ((15, 23, 13), ".layer2.Bottleneck2"),
+                                ((15, 13, 5), ".layer2.Bottleneck2"),
+                                ((15, 13, 23), ".layer2.Bottleneck2"),
+                                #
+                                # ((10, 2, 6), ".layer4.Bottleneck1"),
+                                # ((10, 6, 6), ".layer4.Bottleneck1"),
+                                # ((10, 6, 2), ".layer4.Bottleneck1"),
+                                # ((10, 4, 4), ".layer4.Bottleneck1"),
+                                # ((10, 2, 4), ".layer4.Bottleneck1"),
+                                # ((10, 6, 4), ".layer4.Bottleneck1"),
+                                # ((10, 4, 2), ".layer4.Bottleneck1"),
+                                # ((10, 4, 6), ".layer4.Bottleneck1"),
+                                # ((10, 2, 2), ".layer4.Bottleneck1"),
+                                #
+                                # ((10, 2, 6), ".layer4.Bottleneck0"),
+                                # ((10, 6, 6), ".layer4.Bottleneck0"),
+                                # ((10, 6, 2), ".layer4.Bottleneck0"),
+                                # ((10, 4, 4), ".layer4.Bottleneck0"),
+                                # ((10, 2, 4), ".layer4.Bottleneck0"),
+                                # ((10, 6, 4), ".layer4.Bottleneck0"),
+                                # ((10, 4, 2), ".layer4.Bottleneck0"),
+                                # ((10, 4, 6), ".layer4.Bottleneck0"),
+                                # ((10, 2, 2), ".layer4.Bottleneck0"),
+                                # #
+                                # ((10, 2, 6), ".layer4.Bottleneck2"),
+                                # ((10, 6, 6), ".layer4.Bottleneck2"),
+                                # ((10, 6, 2), ".layer4.Bottleneck2"),
+                                # ((10, 4, 4), ".layer4.Bottleneck2"),
+                                # ((10, 2, 4), ".layer4.Bottleneck2"),
+                                # ((10, 6, 4), ".layer4.Bottleneck2"),
+                                # ((10, 4, 2), ".layer4.Bottleneck2"),
+                                # ((10, 4, 6), ".layer4.Bottleneck2"),
+                                # ((10, 2, 2), ".layer4.Bottleneck2"),
+                        ]:
     expstr = "%s-%d-%d-%d"%(shorten_layername(targetlayer), *targetunit)
     prefix = "%s-%d-%d-%d"%(shorten_layername(targetlayer), *targetunit) #"L3Btn5-10-3-3"
     expdir = join(outdir, expstr)
@@ -188,8 +284,11 @@ for (targetunit, targetlayer) in [
         feattsr_all.append(feattsr.cpu().numpy())
         resp_all.append(resp)
 
+    imgs = G.visualize(torch.tensor(z_arr).float().cuda())
+    save_imgrid(imgs[:5], join(expdir, f"{prefix}-proto-imgs.png"), nrow=5)
     resp_all = np.concatenate(resp_all, axis=0)
     feattsr_all = np.concatenate(feattsr_all, axis=0)
+    np.save(join(expdir, f"{expstr}_evol_resp.npy"), resp_all)
     #%% Compute Correlation and Covariance tensor
     respnorm = (resp_all - resp_all.mean(axis=0, keepdims=True)) / resp_all.std(axis=0, keepdims=True)
     featnorm = (feattsr_all - feattsr_all.mean(axis=0, keepdims=True))
@@ -198,7 +297,7 @@ for (targetunit, targetlayer) in [
     cctsr[np.isnan(cctsr)] = 0
     # t value correspond to the pearson correlation
     Ttsr = cctsr / np.sqrt(1 - cctsr**2) * np.sqrt(resp_all.shape[0] - 2)
-    del featnorm, respnorm
+    del featnorm, respnorm, imgs
     #%%
     Hmat, Hmaps, ccfactor, Stat = tsr_posneg_factorize(covtsr,
                            bdr=0, Nfactor=3, do_save=True, figdir=expdir)
@@ -226,8 +325,12 @@ for (targetunit, targetlayer) in [
     #%%
     gradmap_dict = estimate_RF_for_fit_models(fit_models, regresslayer, Hmaps, ccfactor,
                                    expdir, prefix=prefix, )
-    gradAmpmap = grad_RF_estimate(scorer.model, targetlayer, targetunit, input_size=(3,227,227),
+    try:
+        gradAmpmap = grad_RF_estimate(scorer.model, targetlayer, targetunit, input_size=(3,227,227),
                          device="cuda", show=True, reps=200, batch=1)
+    except ValueError:
+        gradAmpmap = GAN_grad_RF_estimate(G, scorer.model, targetlayer, targetunit, input_size=(3,227,227),
+                         device="cuda", show=True, reps=20, batch=5)
     fitdict = fit_2dgauss(gradAmpmap, prefix, outdir=expdir, plot=True)
     # Xlim, Ylim = gradmap2RF_square(gradAmpmap, absthresh=None, relthresh=0.01, square=True))
     #%% Evaluate RF fit
@@ -260,8 +363,8 @@ for (targetunit, targetlayer) in [
     #%%
     df_INet, eval_dict_INet, y_pred_INet = evaluate_prediction(fit_models, natvalXfeat, target_scores_natval,
                                                                label="-layer3-ImageNet", savedir=expdir)
-#%%
-
+    np.save(join(expdir, f"{expstr}_ImageNet_resp_gt.npy"), natvalXfeat)
+    plt.close("all")
 #%%
 
 sumdir = join(outdir, "summary")
