@@ -5,6 +5,7 @@ from torchvision.transforms import ToTensor, ToPILImage, \
     Normalize, Compose, Resize, CenterCrop
 from imageio import imread, imsave
 from glob import glob
+from os.path import join
 from torch.utils.data import Subset, SubsetRandomSampler
 
 class ImagePathDataset(Dataset):
@@ -57,3 +58,9 @@ def create_imagenet_valid_dataset(imgpix=256, normalize=True,):
                           ])
     dataset = ImageFolder(r"E:\Datasets\imagenet-valid", transform=preprocess)
     return dataset
+
+
+def Invariance_dataset():
+    img_src = r"N:\Stimuli\Invariance\Project_Manifold\ready"
+    imglist = sorted(glob(join(img_src, "*.jpg")))
+    return ImagePathDataset(imglist, None)
