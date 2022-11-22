@@ -40,6 +40,7 @@ def rename_col(result_df, ):
                               'Unnamed: 2': "Regressor",}, inplace=True)
     return result_df
 
+
 def shorten_layer_name(result_df, ):
     """Shorten the layer name"""
     result_df["ShortLayer"] = result_df["Layer"].apply(lambda x:

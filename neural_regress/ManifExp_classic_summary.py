@@ -36,9 +36,10 @@ def uniformize_psth(psth_arr):
                 raise ValueError("Unrecognized psth format {}".format(psth.shape))
     return format_psth
 #%%
+from stats_utils import saveallforms
 bslwdw = slice(0, 45)
 evkwdw = slice(50, 200)
-for Animal in ["Beto"]: # ["Alfa", "Beto"]:
+for Animal in ["Alfa", "Beto"]: # ["Alfa", "Beto"]:
     MStats = loadmat(join(mat_path, Animal + "_Manif_stats.mat"), struct_as_record=False, squeeze_me=True)['Stats']
     EStats = loadmat(join(mat_path, Animal + "_Evol_stats.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['EStats']
     ReprStats = loadmat(join(mat_path, Animal + "_ImageRepr.mat"), struct_as_record=False, squeeze_me=True, chars_as_strings=True)['ReprStats']
@@ -75,7 +76,8 @@ for Animal in ["Beto"]: # ["Alfa", "Beto"]:
         plt.ylabel("Firing Rate (Hz)", fontsize=12)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(join(figdir, f"{Animal}_Exp{Expi:02d}_Evolution.png"))
+        # plt.savefig(join(figdir, f"{Animal}_Exp{Expi:02d}_Evolution.png"))
+        saveallforms(figdir, f"{Animal}_Exp{Expi:02d}_Evolution")
         plt.show()
         #%%%
         MS = MStats[Expi - 1]
@@ -110,8 +112,9 @@ for Animal in ["Beto"]: # ["Alfa", "Beto"]:
             plt.xlabel(vec2lab, fontsize=12)
             plt.ylabel(vec1lab, fontsize=12)
             plt.tight_layout()
-            plt.savefig(join(figdir, f"{Animal}_Exp{Expi:02d}_Manifold{spacelabel}.png"))
+            # plt.savefig(join(figdir, f"{Animal}_Exp{Expi:02d}_Manifold{spacelabel}.png"))
             # plt.savefig(join(figdir, f"{Animal}_Exp{Expi:02d}_Manifold.pdf"))
+            saveallforms(figdir, f"{Animal}_Exp{Expi:02d}_Manifold{spacelabel}")
             plt.show()
             # raise NotImplementedError
 

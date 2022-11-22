@@ -279,7 +279,6 @@ def evaluate_prediction(fit_models, Xfeat_dict, y_true, label="", savedir=None):
     return df, eval_dict, y_pred_dict
 
 
-
 def merge_dict_arrays(*dict_arrays):
     """
     Merge a list of dicts into a single dict.

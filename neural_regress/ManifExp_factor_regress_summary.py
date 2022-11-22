@@ -143,7 +143,7 @@ Visualize as barplot the prediction accuracy
 for each layer and regressor individually for each experiment.
 """
 rootdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress"
-sumdir = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
+sumdir  = r"E:\OneDrive - Harvard University\Manifold_NeuralRegress\summary"
 figdir = join(sumdir, "per_experiment")  # per experiment summary figure
 for Animal in ["Alfa", "Beto"]:
     for Expi in range(1, 47):

@@ -1,3 +1,6 @@
+"""
+Plot the image sequence during Evolution.
+"""
 import numpy as np
 from build_montages import make_grid_np
 import matplotlib.pyplot as plt
